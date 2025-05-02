@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>친구별 카카오 인증</title>
+  <style>
+    body { font-family: sans-serif; padding:2rem; }
+    a.button {
+      display:block; margin:.5rem 0; padding:.5rem 1rem;
+      background:#fee500; color:#000; border-radius:4px;
+      text-decoration:none; text-align:center;
+    }
+    #msg { white-space: pre-wrap; margin-top:1rem; }
+  </style>
+</head>
+<body>
+  <h1>친구별 카카오 인증</h1>
+  <div id="buttons">로딩 중…</div>
+  <div id="msg"></div>
+
+  <script>
+    const FRIENDS = [
+      '조병재','강정호','김가율','오수진','윤소연',
+      '이재훈','이지혜','임용헌','허정은'
+    ];
+    const params = new URLSearchParams(window.location.search);
+    const code  = params.get('code');
+    const state = params.get('state');
+
+    function $(id){return document.getElementById(id);}
+
+    if (!code) {
+      // 1) 인증 전: 친구별 버튼 생성
+      $('buttons').innerHTML = FRIENDS.map(name => {
+        const uri = encodeURIComponent(location.href);
+        return `<a class="button"
+          href="https://kauth.kakao.com/oauth/authorize
+            ?client_id=b753d319ccd4300a4c957d7d4c6c9b96
+            &redirect_uri=${uri}
+            &response_type=code
+            &scope=talk_message,friends
+            &state=${encodeURIComponent(name)}".replace(/\s+/g,'')>
+          ${name} 인증하기
+        </a>`;
+      }).join('');
+    } else {
+      // 2) code와 state 있으면 교환 + 저장
+      $('buttons').innerText = '토큰 교환 중… 잠시만요.';
+      google.script.run
+        .withSuccessHandler(data => {
+          $('msg').innerText =
+            `✅ 인증 완료!\nAccess: ${data.access_token}\nRefresh: ${data.refresh_token}`;
+        })
+        .withFailureHandler(e => {
+          $('msg').innerText = `❌ 오류: ${e.message}`;
+        })
+        .handleAuth(code, state);
+    }
+  </script>
+</body>
+</html>
