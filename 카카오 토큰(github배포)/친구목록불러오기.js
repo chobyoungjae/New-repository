@@ -1,3 +1,25 @@
+/**
+ * 트리거 대시보드용 백데이터 (문서 ID 기준 기록)
+ *
+ * @param {string} docId - '정기 트리거 상태' 시트 B열의 문서 ID
+ */
+function logRegularTriggerMapped(docId) {
+  var dashboard = SpreadsheetApp.openById("1YMH0u-NRghspwapeczB-siQPs022f3H2EFVp7tPX31s");
+  var sheet     = dashboard.getSheetByName("정기 트리거 상태");
+  var data      = sheet.getDataRange().getValues();
+  var now       = new Date();
+
+  // B열 문서 ID가 docId와 일치하고, E열(status)가 비어있는 첫 행에만 기록
+  for (var i = 1; i < data.length; i++) {
+    var rowDocId = data[i][1];  // B열: 문서 ID
+    var status   = data[i][4];  // E열: 상태
+    if (rowDocId === docId && !status) {
+      sheet.getRange(i + 1, 5).setValue("✅ 실행됨"); // E열: 작동유무
+      sheet.getRange(i + 1, 6).setValue(now);         // F열: 실행 시간
+      return;
+    }
+  }
+}
 
 /**
  * 친구 목록 갱신
@@ -7,7 +29,7 @@
  */
 function getKakaoFriendsToSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const friendSheet = ss.getSheetByName('친구목록불러오기');
+  const friendSheet = ss.getSheetByName('카카오친구목록');
   if (!friendSheet) throw new Error('시트를 찾을 수 없습니다: 친구목록불러오기');
 
   const tokenSheet = ss.getSheetByName('토큰갱신');
