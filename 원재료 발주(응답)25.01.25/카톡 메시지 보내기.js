@@ -31,6 +31,11 @@ function onEdit(e) {
   var col   = range.getColumn();
   var value = e.value;
   var sheetName = sheet.getName();
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+  '발주확인 트리거됨: 행 ' + row,
+  'onEdit Debug',
+  3
+);
 
   // 대상 시트
   var targetSheets = ["부재료(박스)", "부재료(포장지)", "원재료"];
@@ -38,8 +43,8 @@ function onEdit(e) {
 
   // 친구 목록 로드
   var friendSheet = SpreadsheetApp.openById(
-    "1EZjBb4uysZDjtwwoydznVl6An1dArgKVS5yGkn2YkpQ"
-  ).getSheetByName("카카오친구목록");
+    "1FAYigya47GJWfTm4yysQSY9WCTDV8b0Du_rYnAtYug0"
+  ).getSheetByName("UUID");
   var friendMap = getFriendMap(friendSheet);
 
   // 행 데이터
@@ -148,4 +153,10 @@ function sendKakaoTo(name, message, friendMap, linkUrl) {
   } catch (e) {
     return `❌ 오류: ${e.message}`;
   }
+}
+
+function logSheetNames() {
+  var ss    = SpreadsheetApp.openById('15RDzwxbuo2X3B95axNaU41rj0ZECxfpu4nySK9sjy60');
+  var names = ss.getSheets().map(s => s.getName());
+  Logger.log('시트 목록: ' + names.join(', '));
 }

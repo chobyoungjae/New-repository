@@ -1,4 +1,16 @@
 /**
+ * 토큰갱신 함수 + 친구목록불러오기 함수 순차적으로 실핼 함수
+ */
+function refreshTokensAndUpdateFriends() {
+ logRegularTriggerMapped("refreshTokensAndUpdateFriends");
+  // 1) 토큰 갱신
+  refreshAllTokens();
+
+  // 2) 토큰 갱신이 완료된 직후에 친구 목록 불러오기
+  getKakaoFriendsToSheet();
+}
+
+/**
  * static 페이지에서 form POST로 넘어온
  * state(이름), access_token, refresh_token 을 받아서
  * '토큰갱신' 시트에 기록합니다.
@@ -13,8 +25,8 @@ function doPost(e) {
     ? e.parameter
     : JSON.parse(e.postData.contents || '{}');
 
-  const name = p.state;
-  const accessToken = p.access_token;
+  const name         = p.state;
+  const accessToken  = p.access_token;
   const refreshToken = p.refresh_token;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -30,7 +42,7 @@ function doPost(e) {
 
   // 데이터 입력 또는 업데이트
   const lastRow = sh.getLastRow();
-  const names = lastRow > 1
+  const names   = lastRow > 1
     ? sh.getRange(2, 1, lastRow - 1, 1).getValues().flat()
     : [];
   let row;
@@ -45,7 +57,7 @@ function doPost(e) {
 
   // 최초 발급 상태 및 발급 시각 기록
   const now = new Date();
-  const ts = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  const ts  = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   sh.getRange(row, 4).setValue('최초토큰발급');
   sh.getRange(row, 5).setValue(ts);
 
