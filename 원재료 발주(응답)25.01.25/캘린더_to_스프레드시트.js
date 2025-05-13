@@ -16,35 +16,33 @@ function getColorNameById(colorId) {
   return colorMap[String(colorId).toLowerCase()] || colorId;
 }
 
-// 📥 구글 캘린더 → 시트 동기화 (구매용)
+// ✅ 버튼 클릭용 함수 (UI + 실제 로직 호출)
 function showConfirmationAndUpdate_buy() {
-  logRegularTriggerMapped("showConfirmationAndUpdate_buy");
-  
   const ui = SpreadsheetApp.getUi();
   const response = ui.alert(
     '캘린더 정보 동기화',
     '구글 캘린더 정보를 추적/불러오시겠습니까?',
     ui.ButtonSet.YES_NO
   );
-
   if (response !== ui.Button.YES) return;
 
+  updateCalendarToSheet(); // 진짜 로직 함수 호출
+}
+
+// ✅ 공통 로직 함수 (트리거도 여기로 연결 가능, UI 없음)
+function updateCalendarToSheet() {
+  logRegularTriggerMapped("updateCalendarToSheet");
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getActiveSheet();
     const calendarId = sheet.getRange("A1").getValue();
     const calendar = CalendarApp.getCalendarById(calendarId);
-
-    if (!calendar) {
-      ui.alert('캘린더를 찾을 수 없습니다. 캘린더 ID를 확인해주세요.', ui.ButtonSet.OK);
-      return;
-    }
+    if (!calendar) return;
 
     const lastRow = sheet.getLastRow();
-    const eventIdsRange = sheet.getRange(3, 10, lastRow - 2); // J열 (eventId)
-    const eventIds = eventIdsRange.getValues().map(row => row[0]);
+    const eventIds = sheet.getRange(3, 10, lastRow - 2).getValues().map(row => row[0]);
     const calendarEvents = calendar.getEvents(new Date(2000, 0, 1), new Date(2100, 0, 1));
-    const calendarEventIds = calendarEvents.map(event => event.getId());
+    const calendarEventIds = calendarEvents.map(e => e.getId());
 
     let updatedCount = 0;
 
@@ -52,6 +50,7 @@ function showConfirmationAndUpdate_buy() {
       const eventId = eventIds[J];
       if (!eventId) continue;
 
+      const row = J + 3;
       if (calendarEventIds.includes(eventId)) {
         const event = calendar.getEventById(eventId);
         if (!event) continue;
@@ -66,44 +65,30 @@ function showConfirmationAndUpdate_buy() {
           endTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
         }
 
-        const colorId = event.getColor();
-        const colorName = getColorNameById(colorId);
-        const row = J + 3;
+        const colorName = getColorNameById(event.getColor());
+        const existingStart = sheet.getRange(row, 2).getValue();
+        const existingEnd = sheet.getRange(row, 3).getValue();
+        const existingColor = sheet.getRange(row, 9).getValue();
 
-        const existingStart = sheet.getRange(row, 2).getValue(); // B열
-        const existingEnd = sheet.getRange(row, 3).getValue();   // C열
-        const existingColor = sheet.getRange(row, 9).getValue(); // I열
-
-        const isStartChanged = !(existingStart instanceof Date) || startTime.getTime() !== existingStart.getTime();
-        const isEndChanged = !(existingEnd instanceof Date) || endTime.getTime() !== existingEnd.getTime();
-
-        // ✅ "스프레드시트의 기존 값이 '회색'이면 색상은 비교/업데이트 안 함"
-        let isColorChanged = false;
-        if (existingColor !== '회색') {
-          isColorChanged = existingColor !== colorName;
+        if (!(existingStart instanceof Date) || startTime.getTime() !== existingStart.getTime()) {
+          sheet.getRange(row, 2).setValue(startTime);
+        }
+        if (!(existingEnd instanceof Date) || endTime.getTime() !== existingEnd.getTime()) {
+          sheet.getRange(row, 3).setValue(endTime);
+        }
+        if (existingColor !== '회색' && existingColor !== colorName) {
+          sheet.getRange(row, 9).setValue(colorName);
         }
 
-        if (isStartChanged) sheet.getRange(row, 2).setValue(startTime);
-        if (isEndChanged) sheet.getRange(row, 3).setValue(endTime);
-        if (isColorChanged) sheet.getRange(row, 9).setValue(colorName);
-
-        if (isStartChanged || isEndChanged || isColorChanged) {
-          updatedCount++;
-        }
+        updatedCount++;
       } else {
-        const rowToDelete = J + 3;
-        sheet.deleteRow(rowToDelete);
+        sheet.deleteRow(row);
       }
     }
 
-    sheet.getRange('O1').setValue(new Date()); // 마지막 동기화 시간 기록
-
-    ui.alert(
-      '동기화 완료',
-      `총 ${updatedCount}개의 일정이 업데이트되었으며,\n삭제된 일정이 반영되었습니다.`,
-      ui.ButtonSet.OK
-    );
-  } catch (error) {
-    ui.alert('오류 발생', '동기화 중 오류가 발생했습니다:\n' + error.toString(), ui.ButtonSet.OK);
+    sheet.getRange('O1').setValue(new Date());
+    Logger.log(`총 ${updatedCount}개 일정이 업데이트되었습니다.`);
+  } catch (e) {
+    Logger.log('캘린더 동기화 중 오류: ' + e.toString());
   }
 }

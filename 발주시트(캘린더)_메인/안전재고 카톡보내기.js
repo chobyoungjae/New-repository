@@ -25,12 +25,23 @@ function logRegularTriggerMapped(docId) {
 // 3. 메시지 전송
 // --------------------------------------------------
 function sendKakaoMessagesFromSheet() {
-  logRegularTriggerMapped("sendKakaoMessagesFromSheet");
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const shMsg = ss.getSheetByName("카톡 내용보낼거");
-  const token = ss.getSheetByName("UUID").getRange("F1").getValue();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // 1) ERP재고 입력 시트 C1에 "에러" 포함 시 바로 종료(트리거 로그도 남기지 않음)
+  const erpSheet = ss.getSheetByName("ERP재고 입력");
+  const errMsg   = erpSheet.getRange("C1").getValue();
+  if (typeof errMsg === 'string' && errMsg.indexOf("에러") !== -1) {
+    Logger.log("중단: ERP재고 입력 시트 C1에 에러 감지");
+    return;
+  }
+
+  // 2) 트리거 실행 로그 남기기
+  logRegularTriggerMapped("sendKakaoMessagesFromSheet");
+
+  const shMsg   = ss.getSheetByName("카톡 내용보낼거");
+  const token   = ss.getSheetByName("UUID").getRange("F1").getValue();
   const lastRow = shMsg.getLastRow();
+
   for (let r = 4; r <= lastRow; r++) {
     // A열 값이 없으면 더 이상 처리하지 않고 루프 종료
     if (!shMsg.getRange(r, 1).getValue()) break;
@@ -69,8 +80,6 @@ function sendKakaoMessagesFromSheet() {
          .setValue(ok && ok.length ? "✅ 성공" : "❌ 실패");
   }
 }
-
-
 
 
 /**
