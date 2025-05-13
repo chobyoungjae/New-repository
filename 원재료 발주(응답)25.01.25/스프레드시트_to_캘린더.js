@@ -7,7 +7,6 @@ function onOpen() {
 }
 
 function onClickShape_buy() {
- logRegularTriggerMapped("onClickShape_buy");
   const ui = SpreadsheetApp.getUi();
   const response = ui.alert('일정 업데이트', '캘린더 일정을 업데이트하시겠습니까?', ui.ButtonSet.YES_NO);
   if (response === ui.Button.YES) {
@@ -38,6 +37,7 @@ function isValidDate(d) {
 }
 
 function updateBuyCalendar() {
+  logRegularTriggerMapped("updateBuyCalendar");
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const calendarId = 'u37tatg5kaj7q6eru6m2o9vr80@group.calendar.google.com';
   const calendar = CalendarApp.getCalendarById(calendarId);
@@ -135,5 +135,10 @@ function updateBuyCalendar() {
   }
 
   sheet.getRange('Q1').setValue(now); // 실행 완료 시간 저장
+  try {
   SpreadsheetApp.getUi().alert('일정 업데이트가 완료되었습니다.');
+  } catch (e) {
+    // 트리거에서는 UI 사용 불가 → 조용히 무시
+  }  
 }
+

@@ -26,6 +26,15 @@ function sendErrorAlert(title, message) {
   MailApp.sendEmail('oosdream3@gmail.com', title, message);
 }
 
+// 2) 테스트용으로 이 함수만 ▶️ 눌러 실행
+function testSendErrorAlert() {
+  var title   = '테스트 알림';
+  var message = '이 메시지가 카카오톡으로도 가는지 확인합니다.';
+  var res = sendErrorAlert(title, message);
+  // (선택) 리턴 객체도 로그로
+  Logger.log(res);
+}
+
 /**
  * 트리거 대시보드용 백데이터 (문서 ID 기준 기록)
  */
@@ -74,27 +83,41 @@ function getProductName(sessionId, prodCd) {
   }
 }
 
-// 3) 전체 재고 조회 + 제품명 붙이기 (에러 발생 시 카톡+메일 알림)
+// 3) 전체 재고 조회 + 제품명 붙이기 (에러 발생 시 C1에 기록 & 카톡+메일 알림)
 function importInventoryListFromEcount() {
-  const sessionId = loginToEcountWithOfficialKey();
-  if (!sessionId) {
-    sendErrorAlert('재고 조회 에러', '세션 획득 실패');
-    return;
-  }
-  const locationCodes = ["00001","00006","00004","00003","00002"];
-  const baseDate = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd");
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("재고현황") || ss.insertSheet("재고현황");
+  // 시트 초기화 (C1 포함)
   sheet.clear();
   const now = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
   sheet.getRange("A1").setValue(`업데이트 시간: ${now}`);
   sheet.appendRow(["위치코드","품목코드","제품명","재고수량"]);
 
+  // 1) 로그인
+  const sessionId = loginToEcountWithOfficialKey();
+  if (!sessionId) {
+    const msg = '세션 획득 실패';
+    sheet.getRange("C1").setValue("에러 : " + msg);
+    sendErrorAlert('재고 조회 에러', msg);
+    return;
+  }
+
+  const locationCodes = ["00001","00004"];
+  const baseDate = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd");
+
+  // 2) 위치별 재고 조회
   locationCodes.forEach(code => {
     try {
       const apiUrl = `https://oapicb.ecount.com/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
-      const res = UrlFetchApp.fetch(apiUrl, { method: "post", contentType: "application/json", payload: JSON.stringify({ PROD_CD: "", WH_CD: code, BASE_DATE: baseDate }), muteHttpExceptions: true });
-      if (res.getResponseCode() !== 200) throw new Error(`HTTP ${res.getResponseCode()} at ${code}`);
+      const res = UrlFetchApp.fetch(apiUrl, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify({ PROD_CD: "", WH_CD: code, BASE_DATE: baseDate }),
+        muteHttpExceptions: true
+      });
+      if (res.getResponseCode() !== 200) {
+        throw new Error(`HTTP ${res.getResponseCode()} at ${code}`);
+      }
       const data = JSON.parse(res.getContentText());
       if (data.Status === "200" && data.Data && data.Data.Result) {
         data.Data.Result.forEach(item => {
@@ -106,14 +129,33 @@ function importInventoryListFromEcount() {
         throw new Error(`Invalid data at ${code}`);
       }
     } catch (e) {
-      Logger.log(`❌ 위치 ${code} 에러: ${e.message}`);
-      sendErrorAlert('재고 조회 에러', `위치 ${code}: ${e.message}`);
+      const err = e.message;
+      // C1에 에러 기록
+      sheet.getRange("C1").setValue("에러 : 위치 " + code + ": " + err);
+      Logger.log(`❌ 위치 ${code} 에러: ${err}`);
+      sendErrorAlert('재고 조회 에러', `위치 ${code}: ${err}`);
     }
   });
 }
 
-// 4) 실행 진입점
+// 4) 실행 진입점 (import 먼저, 에러 없을 때만 로그 기록)
 function runImportInventory() {
-  logRegularTriggerMapped("runImportInventory");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var invSheet = ss.getSheetByName("재고현황");
+  
+  // ← 여기를 추가: C1 초기화
+  if (invSheet) {
+    invSheet.getRange("C1").clearContent();
+  }
+
+  // 1) 재고 조회 실행 (내부에서 sheet.clear() 도 수행)
   importInventoryListFromEcount();
+
+  // 2) 에러 여부 확인
+  var errorMsg = invSheet.getRange("C1").getValue();
+
+  // 3) 에러가 없을 때만 대시보드에 실행로그 기록
+  if (!errorMsg) {
+    logRegularTriggerMapped("runImportInventory");
+  }
 }

@@ -126,7 +126,15 @@ function pollTriggers() {
         var fnName    = rows[i][2];
         var titleText = sheetName + '의 ' + fnName + ' 트리거 미작동 알림';
         var buttonUrl = 'https://kakao-test-ebon.vercel.app/go.html?doc=대시보드';
+
+        // ——— 카카오톡 버튼형 알림 ———
         sendKakaoFeedWithButton(titleText, '내용 확인', buttonUrl);
+
+        // ——— 이메일 알림 ———
+        var recipient = 'oosdream3@gmail.com';
+        var subject   = titleText;
+        var body      = '내용 확인: ' + buttonUrl;
+        MailApp.sendEmail(recipient, subject, body);
       }
       break;
     }
