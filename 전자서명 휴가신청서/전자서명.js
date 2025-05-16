@@ -10,12 +10,13 @@ const CONFIG = {
   COL_REVIEWER: 14,             // N열 – 검토자명 입력
   COL_REVIEWER_SIG: 15,         // O열 – 검토자 서명
   COL_CEO_SIG: 17,              // Q열 – 대표 서명
-
+  COL_PDF_DONE: 18,             // ← 여기에 추가 (R열)
+  COL_REVIEW_DONE:  19,         // S열  → 검토자 메일 발송 완료(Y)  ⟵ ★추가
   CELL_CEO_NAME: 'R2',          // 대표자 이름(고정)
   CELL_MANAGER: 'Q2',           // 담당자 이름(고정)
 
   PDF_FOLDER_ID: '1QxawQmqFzXe_R6GoW9jZyAtjhrmpZV-f',
-  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbxtWg2HpU7hJP7REklonHJ59ge77HH3lSBiMJPuprO9nkMFklsvSDu8LUOy_P7TOOOY/exec',
+  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbxKP1tueCpxQmJUYd8WZG8nUbJ22yzty5pMt_zgE9IG8ww9feRFufdy9FeARfBZdRyX/exec',
   DOC_RANGE: 'A1:K20',          // 미리보기 범위
   DEBUG: true
 };
@@ -105,36 +106,75 @@ function sendMail(role, name, row) {
   if (CONFIG.DEBUG) Logger.log(`메일 → ${user.email} (${role}, row ${row})`);
 }
 
-// ========== doGet ==========
 function doGet(e) {
   const { role, name, row } = e.parameter;
-  if (!role || !name || !row) return HtmlService.createHtmlOutput('파라미터 오류');
-  const r = parseInt(row, 10);
+  if (!role || !name || !row)
+    return HtmlService.createHtmlOutput('파라미터 오류');
 
+  const r     = parseInt(row, 10);
+  const sheet = dataS();
+
+  /* ───────── leader ───────── */
   if (role === 'leader') {
-    insertSig(r, CONFIG.COL_LEADER_SIG, name);
-    SpreadsheetApp.flush();
-    // N열: 검토자명 수식 삽입 후 메일 발송
-    const formula = `=IFERROR(VLOOKUP(L${r}, '${CONFIG.LOOKUP}'!N:O, 2, FALSE), "")`;
-    dataS().getRange(r, CONFIG.COL_REVIEWER).setFormula(formula);
-    SpreadsheetApp.flush();
-    const reviewer = dataS().getRange(r, CONFIG.COL_REVIEWER).getDisplayValue().trim();
-    if (reviewer) sendMail('reviewer', reviewer, r);
+    // ▼ 문 잠그기
+    const lock = LockService.getDocumentLock();
+    lock.waitLock(3000);          // 최대 3초 대기
 
-  } else if (role === 'reviewer') {
+    try {
+      if (!sheet.getRange(r, CONFIG.COL_REVIEW_DONE).getValue()) {
+        insertSig(r, CONFIG.COL_LEADER_SIG, name);
+        SpreadsheetApp.flush();
+
+        sheet.getRange(r, CONFIG.COL_REVIEWER)
+             .setFormula(`=IFERROR(VLOOKUP(L${r}, '${CONFIG.LOOKUP}'!N:O, 2, FALSE),"")`);
+        SpreadsheetApp.flush();
+
+        const reviewer = sheet.getRange(r, CONFIG.COL_REVIEWER)
+                              .getDisplayValue().trim();
+        if (reviewer) {
+          sendMail('reviewer', reviewer, r);
+          sheet.getRange(r, CONFIG.COL_REVIEW_DONE).setValue('Y');
+        }
+      }
+    } finally {
+      lock.releaseLock();
+    }
+    return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
+  }
+
+  /* ───────── reviewer ───────── */
+  if (role === 'reviewer') {
     insertSig(r, CONFIG.COL_REVIEWER_SIG, name);
     SpreadsheetApp.flush();
-    const ceoName = dataS().getRange(CONFIG.CELL_CEO_NAME).getValue().toString().trim();
-    if (ceoName) sendMail('ceo', ceoName, r);
 
-  } else if (role === 'ceo') {
-    insertSig(r, CONFIG.COL_CEO_SIG, name);
-    SpreadsheetApp.flush();
-    exportPdfAndNotify(r);
+    const ceoName = sheet.getRange(CONFIG.CELL_CEO_NAME).getValue().toString().trim();
+    if (ceoName) sendMail('ceo', ceoName, r);
+    return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
+  }
+
+  /* ───────── ceo ───────── */
+  if (role === 'ceo') {
+    // ▼ 문 잠그기
+    const lock = LockService.getDocumentLock();
+    lock.waitLock(3000);
+
+    try {
+      if (!sheet.getRange(r, CONFIG.COL_PDF_DONE).getValue()) {
+        insertSig(r, CONFIG.COL_CEO_SIG, name);
+        SpreadsheetApp.flush();
+        exportPdfAndNotify(r);                       // PDF + 담당자 메일 (한 번)
+        sheet.getRange(r, CONFIG.COL_PDF_DONE).setValue('Y');
+      }
+    } finally {
+      lock.releaseLock();
+    }
+    return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
   }
 
   return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
 }
+
+
 
 // ========== insertSig ==========
 function insertSig(row, col, name) {
@@ -145,23 +185,36 @@ function insertSig(row, col, name) {
 
 // ========== exportPdfAndNotify ==========
 function exportPdfAndNotify(row) {
+  // per-person 시트 가져오기
   const owner = dataS().getRange(row, 2).getValue().toString().trim();
   const sheet = ss.getSheetByName(owner) || tplS();
+
+  // PDF 내보내기 URL 구성
   const gid = sheet.getSheetId();
   const url = ss.getUrl().replace(/edit$/, '') +
     `export?format=pdf&gid=${gid}` +
     `&size=A4&portrait=true&scale=5` +
     `&spct=1.15&gridlines=false&sheetnames=false&printtitle=false`;
+
+  // PDF Blob 생성
   const blob = UrlFetchApp.fetch(url, {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
   }).getBlob();
 
-  // 파일명: 휴가신청서_YYYY-MM-DD_이름.pdf
+  // 1) F5 타임스탬프 읽어서 원하는 포맷으로 변환
   const ts = sheet.getRange('F5').getValue();
-  const formattedDate = Utilities.formatDate(new Date(ts), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  const fileName = `휴가신청서_${formattedDate}_${owner}.pdf`;
+  const tz = Session.getScriptTimeZone();
+  const formattedTs = Utilities.formatDate(new Date(ts), tz, 'yyyy-MM-dd_HH:mm:ss');
+
+  // 2) 파일명에 타임스탬프와 이름 포함
+  const fileName = `휴가신청서_${formattedTs}_${owner}.pdf`;
   blob.setName(fileName);
 
+  // 3) 새 파일 한 번만 생성 (휴지통 이동/덮어쓰기 없음)
+  const folder = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID);
+  const file   = folder.createFile(blob);
+
+  // 4) 담당자에게 메일 발송
   const mgrEmail = findUser(
     dataS().getRange(CONFIG.CELL_MANAGER).getValue()
   ).email;
@@ -171,6 +224,7 @@ function exportPdfAndNotify(row) {
     '서명이 완료되어 PDF 전달드립니다.\n' + file.getUrl()
   );
 }
+
 
 // ========== findUser ==========
 function findUser(name) {
