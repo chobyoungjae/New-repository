@@ -9,14 +9,14 @@ const CONFIG = {
   COL_LEADER_SIG: 13,           // M열 – 팀장 서명
   COL_REVIEWER: 14,             // N열 – 검토자명 입력
   COL_REVIEWER_SIG: 15,         // O열 – 검토자 서명
+  COL_CEO: 16,                  // P열 – 검토자 추가정보 ← 새로 추가
   COL_CEO_SIG: 17,              // Q열 – 대표 서명
-  COL_PDF_DONE: 18,             // ← 여기에 추가 (R열)
-  COL_REVIEW_DONE:  19,         // S열  → 검토자 메일 발송 완료(Y)  ⟵ ★추가
+
   CELL_CEO_NAME: 'R2',          // 대표자 이름(고정)
   CELL_MANAGER: 'Q2',           // 담당자 이름(고정)
 
   PDF_FOLDER_ID: '1QxawQmqFzXe_R6GoW9jZyAtjhrmpZV-f',
-  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbxKP1tueCpxQmJUYd8WZG8nUbJ22yzty5pMt_zgE9IG8ww9feRFufdy9FeARfBZdRyX/exec',
+  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbxOj-TJMXe7BUXnT5Htx5SFEp6Z70mHNs0C5J6iCXc1a6KpMBYXNLx9Yk5NBoQU2i36/exec',
   DOC_RANGE: 'A1:K20',          // 미리보기 범위
   DEBUG: true
 };
@@ -121,36 +121,40 @@ function doGet(e) {
     lock.waitLock(3000);          // 최대 3초 대기
 
     try {
-      if (!sheet.getRange(r, CONFIG.COL_REVIEW_DONE).getValue()) {
-        insertSig(r, CONFIG.COL_LEADER_SIG, name);
-        SpreadsheetApp.flush();
+  // 팀장 서명(M열)
+  insertSig(r, CONFIG.COL_LEADER_SIG, name);
+  SpreadsheetApp.flush();
 
-        sheet.getRange(r, CONFIG.COL_REVIEWER)
-             .setFormula(`=IFERROR(VLOOKUP(L${r}, '${CONFIG.LOOKUP}'!N:O, 2, FALSE),"")`);
-        SpreadsheetApp.flush();
+  // 검토자 이름 수식 (N열)
+  sheet.getRange(r, CONFIG.COL_REVIEWER)
+       .setFormula(`=IFERROR(VLOOKUP(L${r}, '${CONFIG.LOOKUP}'!N:O, 2, FALSE),"")`);
+  SpreadsheetApp.flush();
 
-        const reviewer = sheet.getRange(r, CONFIG.COL_REVIEWER)
-                              .getDisplayValue().trim();
-        if (reviewer) {
-          sendMail('reviewer', reviewer, r);
-          sheet.getRange(r, CONFIG.COL_REVIEW_DONE).setValue('Y');
-        }
-      }
-    } finally {
-      lock.releaseLock();
-    }
+  const reviewer = sheet.getRange(r, CONFIG.COL_REVIEWER).getDisplayValue().trim();
+  if (reviewer) sendMail('reviewer', reviewer, r);   // 검토자 메일만 전송
+} finally {
+  lock.releaseLock();
+}
     return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
   }
 
-  /* ───────── reviewer ───────── */
-  if (role === 'reviewer') {
-    insertSig(r, CONFIG.COL_REVIEWER_SIG, name);
-    SpreadsheetApp.flush();
+/* ───────── reviewer 블록 ───────── */
+if (role === 'reviewer') {
+  insertSig(r, CONFIG.COL_REVIEWER_SIG, name);        // O열 서명
+  SpreadsheetApp.flush();
 
-    const ceoName = sheet.getRange(CONFIG.CELL_CEO_NAME).getValue().toString().trim();
-    if (ceoName) sendMail('ceo', ceoName, r);
-    return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
-  }
+  // P열 수식 삽입 → 상수 사용
+  sheet.getRange(r, CONFIG.COL_CEO)           // 16 = P열
+       .setFormula(`=IFERROR(VLOOKUP(L${r}, '${CONFIG.LOOKUP}'!N:P, 3, FALSE),"")`);
+  SpreadsheetApp.flush();
+
+  const reviewer = sheet.getRange(r, CONFIG.COL_CEO).getDisplayValue().trim();
+  if (reviewer) sendMail('ceo', reviewer, r);   // 대표자 메일만 전송
+  
+  
+  return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
+}
+
 
   /* ───────── ceo ───────── */
   if (role === 'ceo') {
@@ -159,15 +163,13 @@ function doGet(e) {
     lock.waitLock(3000);
 
     try {
-      if (!sheet.getRange(r, CONFIG.COL_PDF_DONE).getValue()) {
-        insertSig(r, CONFIG.COL_CEO_SIG, name);
-        SpreadsheetApp.flush();
-        exportPdfAndNotify(r);                       // PDF + 담당자 메일 (한 번)
-        sheet.getRange(r, CONFIG.COL_PDF_DONE).setValue('Y');
-      }
-    } finally {
-      lock.releaseLock();
-    }
+  insertSig(r, CONFIG.COL_CEO_SIG, name);  // Q열 서명
+  SpreadsheetApp.flush();
+  
+  exportPdfAndNotify(r);                   // PDF + 담당자 메일
+} finally {
+  lock.releaseLock();
+}
     return HtmlService.createHtmlOutput('서명이 완료되었습니다.');
   }
 
