@@ -16,7 +16,7 @@ const CONFIG = {
   CELL_MANAGER: 'Q2',           // 담당자 이름(고정)
 
   PDF_FOLDER_ID: '1QxawQmqFzXe_R6GoW9jZyAtjhrmpZV-f',
-  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbxOj-TJMXe7BUXnT5Htx5SFEp6Z70mHNs0C5J6iCXc1a6KpMBYXNLx9Yk5NBoQU2i36/exec',
+  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbz1IjjknXKdrZOpLmzzSkXqAc4FzvNnVLjFK9XN28dd5KlC1eWbKOTqawG62dF0QKD3Lw/exec',   // ← 고정 URL
   DOC_RANGE: 'A1:K20',          // 미리보기 범위
   DEBUG: true
 };
@@ -25,6 +25,7 @@ const CONFIG = {
 const ss = SpreadsheetApp.getActive();
 const dataS = () => ss.getSheetByName(CONFIG.DATA);
 const tplS = () => ss.getSheetByName(CONFIG.TEMPLATE);
+
 
 // ========== onFormSubmit ==========
 /**
@@ -87,7 +88,7 @@ function sendMail(role, name, row) {
   if (!user.email) throw `이메일 없음: ${name}`;
 
   // 1) 웹앱 링크
-  const base = CONFIG.WEBAPP_URL;
+  const base = CONFIG.WEBAPP_URL;    // 하드코딩 URL 사용
   const link = `${base}?role=${role}&name=${encodeURIComponent(name)}&row=${row}`;
   const action = (role === 'ceo') ? '승인' : '검토';
   const subject = `연차/휴가 신청서 ${action} 요청`;
@@ -140,6 +141,10 @@ function doGet(e) {
 
 /* ───────── reviewer 블록 ───────── */
 if (role === 'reviewer') {
+  // ▼ 문 잠그기
+    const lock = LockService.getDocumentLock();
+    lock.waitLock(3000);          // 최대 3초 대기
+
   insertSig(r, CONFIG.COL_REVIEWER_SIG, name);        // O열 서명
   SpreadsheetApp.flush();
 
@@ -165,8 +170,10 @@ if (role === 'reviewer') {
     try {
   insertSig(r, CONFIG.COL_CEO_SIG, name);  // Q열 서명
   SpreadsheetApp.flush();
-  
+
   exportPdfAndNotify(r);                   // PDF + 담당자 메일
+  updateRowInCalendar(dataS(), r);          // ← ➊ 캘린더로 push
+
 } finally {
   lock.releaseLock();
 }
@@ -178,7 +185,7 @@ if (role === 'reviewer') {
 
 
 
-// ========== insertSig ==========
+// ========== insertSig ========== (B시트에서 서명 URL 찾아서 넣어줌)
 function insertSig(row, col, name) {
   const formula = `=IFERROR(VLOOKUP("${name}",${CONFIG.LOOKUP}!A:C,3,FALSE),"서명없음")`;
   dataS().getRange(row, col).setFormula(formula);
@@ -186,49 +193,64 @@ function insertSig(row, col, name) {
 }
 
 // ========== exportPdfAndNotify ==========
+// (PDF 만들고 담당자에게 메일 전송)
 function exportPdfAndNotify(row) {
-  // per-person 시트 가져오기
-  const owner = dataS().getRange(row, 2).getValue().toString().trim();
-  const sheet = ss.getSheetByName(owner) || tplS();
 
-  // PDF 내보내기 URL 구성
-  const gid = sheet.getSheetId();
-  const url = ss.getUrl().replace(/edit$/, '') +
-    `export?format=pdf&gid=${gid}` +
-    `&size=A4&portrait=true&scale=5` +
-    `&spct=1.15&gridlines=false&sheetnames=false&printtitle=false`;
+  const statusCell = dataS().getRange(row, 18);      // R열
 
-  // PDF Blob 생성
-  const blob = UrlFetchApp.fetch(url, {
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
-  }).getBlob();
+  /* A. 이미 처리된 행이면 종료 */
+  if (statusCell.getValue() === '등록완료') return;
 
-  // 1) F5 타임스탬프 읽어서 원하는 포맷으로 변환
-  const ts = sheet.getRange('F5').getValue();
-  const tz = Session.getScriptTimeZone();
-  const formattedTs = Utilities.formatDate(new Date(ts), tz, 'yyyy-MM-dd_HH:mm:ss');
+  /* B. 배타 락 */
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return;
 
-  // 2) 파일명에 타임스탬프와 이름 포함
-  const fileName = `휴가신청서_${formattedTs}_${owner}.pdf`;
-  blob.setName(fileName);
+  try {
+    /* C. 두 번째 인스턴스용 빠른 재검사 */
+    if (statusCell.getValue() === '등록완료') return;
 
-  // 3) 새 파일 한 번만 생성 (휴지통 이동/덮어쓰기 없음)
-  const folder = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID);
-  const file   = folder.createFile(blob);
+    /* D. --- 먼저 '등록완료' 기록 후 즉시 저장 ---------- */
+    statusCell.setValue('등록완료');
+    SpreadsheetApp.flush();         // ← 여기서 시트에 바로 반영
 
-  // 4) 담당자에게 메일 발송
-  const mgrEmail = findUser(
-    dataS().getRange(CONFIG.CELL_MANAGER).getValue()
-  ).email;
-  GmailApp.sendEmail(
-    mgrEmail,
-    '[완료] 연차/휴가 신청서',
-    '서명이 완료되어 PDF 전달드립니다.\n' + file.getUrl()
-  );
+    /* E. --- 이후 PDF·메일 작업은 그대로 --------------- */
+    const owner = dataS().getRange(row, 2).getValue().toString().trim();
+    const sheet = ss.getSheetByName(owner) || tplS();
+
+    const url = ss.getUrl().replace(/edit$/, '') +
+      `export?format=pdf&gid=${ sheet.getSheetId() }` +
+      `&size=A4&portrait=true&scale=5` +
+      `&spct=1.15&gridlines=false&sheetnames=false&printtitle=false`;
+
+    const blob = UrlFetchApp.fetch(url, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+    }).getBlob();
+
+    const ts   = sheet.getRange('F5').getValue();
+    const tz   = Session.getScriptTimeZone();
+    const fmt  = Utilities.formatDate(new Date(ts), tz, 'yyyy-MM-dd_HH:mm:ss');
+    blob.setName(`휴가신청서_${fmt}_${owner}.pdf`);
+
+    const file = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID)
+                         .createFile(blob);
+
+    const mgrEmail = findUser(
+      dataS().getRange(CONFIG.CELL_MANAGER).getValue()
+    ).email;
+
+    GmailApp.sendEmail(
+      mgrEmail,
+      '[완료] 연차/휴가 신청서',
+      '서명이 완료되어 PDF 전달드립니다.\n' + file.getUrl()
+    );
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 
-// ========== findUser ==========
+// ========== findUser ========== (B시트에서 이름→이메일/서명 찾기)
 function findUser(name) {
   const list = ss.getSheetByName(CONFIG.LOOKUP)
                  .getRange(1, 1,
@@ -247,7 +269,7 @@ function findUser(name) {
   };
 }
 
-// ========== getDocHtml ==========
+// ========== getDocHtml ========== (신청서 시트(A1:K20)를 HTML 표로 변환 메일 미리보기)
 function getDocHtml(sheet) {
   const s = sheet || tplS();
   const vals = s.getRange(CONFIG.DOC_RANGE).getDisplayValues();
@@ -258,14 +280,67 @@ function getDocHtml(sheet) {
   return html;
 }
 
-// ========== createInstallTrigger ==========
-function createInstallTrigger() {
-  ScriptApp.newTrigger('onEdit')
-           .forSpreadsheet(ss)
-           .onEdit()
-           .create();
-  ScriptApp.newTrigger('onFormSubmit')
-           .forSpreadsheet(ss)
-           .onFormSubmit()
-           .create();
+
+function updateRowInCalendar(sheet, row) {
+
+  /* 추가 ①: 이미 ‘등록완료’면 바로 종료 */
+  if (sheet.getRange(row, 18).getValue() === '등록완료') return;
+
+  /* 추가 ②: Q열(대표 서명) 없으면 종료 */
+  if (!sheet.getRange(row, CONFIG.COL_CEO_SIG).getValue()) return;
+  
+  const cal = CalendarApp.getCalendarById(
+    'r023hniibcf6hqv2i3897umvn4@group.calendar.google.com'
+  );
+  if (!cal) { sheet.getRange(row,18).setValue('캘린더 없음'); return; }
+
+  const startDate   = sheet.getRange(row, 7).getValue();   // G
+  const endDate     = sheet.getRange(row, 8).getValue();   // H
+  const text1       = sheet.getRange(row, 2).getValue();   // B
+  const text2       = sheet.getRange(row, 6).getValue();   // F
+  const text3       = sheet.getRange(row, 3).getValue();   // C
+  const description = sheet.getRange(row,10).getValue();   // J
+  const team        = sheet.getRange(row, 5).getValue();   // E
+
+  if (!(startDate instanceof Date)) { sheet.getRange(row,18).setValue('시작일 오류'); return; }
+  if (!(endDate   instanceof Date)) { sheet.getRange(row,18).setValue('종료일 오류'); return; }
+
+  let idCell = sheet.getRange(row,19);                     // S
+  let eventId = idCell.getValue();
+  if (eventId) {
+  try {
+    if (eventId.indexOf('@') === -1) eventId += '@google.com';
+    if (cal.getEventById(eventId)) return;   // ← R열 안 건드리고 끝
+  } catch (err) { /* 계속 진행 */ }
+}
+
+
+  try {
+    const title   = `${text1} ${text2} ${text3}`;
+    const colorId = getColorId(team);
+    const endAdj  = new Date(endDate.getTime() + 86400000); // +1일
+
+    const ev = (startDate.getTime() === endDate.getTime())
+        ? cal.createAllDayEvent(title, startDate)
+        : cal.createAllDayEvent(title, startDate, endAdj);
+
+    ev.setDescription(description);
+    ev.setColor(colorId);
+
+    idCell.setValue(ev.getId());            // S
+    sheet.getRange(row,18).setValue('등록완료');  // R
+  } catch (err) {
+    sheet.getRange(row,18).setValue('오류: ' + err.message);
+  }
+}
+
+function getColorId(team) {
+  switch (team) {
+    case '생산팀':   return '9';
+    case '품질팀':   return '11';
+    case '영업팀':   return '10';
+    case '마케팅팀': return '5';
+    case '물류팀':   return '3';
+    default:        return '8';
+  }
 }
