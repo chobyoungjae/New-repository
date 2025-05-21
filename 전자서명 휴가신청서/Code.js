@@ -16,7 +16,7 @@ const CONFIG = {
   CELL_MANAGER: 'Q2',           // 담당자 이름(고정)
 
   PDF_FOLDER_ID: '1QxawQmqFzXe_R6GoW9jZyAtjhrmpZV-f',
-  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbz1IjjknXKdrZOpLmzzSkXqAc4FzvNnVLjFK9XN28dd5KlC1eWbKOTqawG62dF0QKD3Lw/exec',   // ← 고정 URL
+  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycby4iGuULONTYVobchGkiBfG5hAfoTGpDij5pdXC3V3gF8xhKZNUxEDweBxgrz4w3wOcZg/exec',   // ← 고정 URL
   DOC_RANGE: 'A1:K20',          // 미리보기 범위
   DEBUG: true
 };
@@ -195,30 +195,29 @@ function insertSig(row, col, name) {
 // ========== exportPdfAndNotify ==========
 // (PDF 만들고 담당자에게 메일 전송)
 function exportPdfAndNotify(row) {
+  const sheet      = dataS();
+  const statusCell = sheet.getRange(row, 18);   // R열
+  const fileIdCell = sheet.getRange(row, 20);   // T열 ← 새로 사용
 
-  const statusCell = dataS().getRange(row, 18);      // R열
-
-  /* A. 이미 처리된 행이면 종료 */
-  if (statusCell.getValue() === '등록완료') return;
-
-  /* B. 배타 락 */
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
 
+
+
   try {
-    /* C. 두 번째 인스턴스용 빠른 재검사 */
+    /* 중복 체크는 락을 잡은 뒤에 */
+    if (fileIdCell.getValue()) return;
     if (statusCell.getValue() === '등록완료') return;
 
-    /* D. --- 먼저 '등록완료' 기록 후 즉시 저장 ---------- */
+
     statusCell.setValue('등록완료');
-    SpreadsheetApp.flush();         // ← 여기서 시트에 바로 반영
+    SpreadsheetApp.flush();
 
-    /* E. --- 이후 PDF·메일 작업은 그대로 --------------- */
-    const owner = dataS().getRange(row, 2).getValue().toString().trim();
-    const sheet = ss.getSheetByName(owner) || tplS();
-
-    const url = ss.getUrl().replace(/edit$/, '') +
-      `export?format=pdf&gid=${ sheet.getSheetId() }` +
+    /* PDF 생성 */
+    const owner = sheet.getRange(row, 2).getValue().toString().trim();
+    const tpl   = ss.getSheetByName(owner) || tplS();
+    const url   = ss.getUrl().replace(/edit$/, '') +
+      `export?format=pdf&gid=${tpl.getSheetId()}` +
       `&size=A4&portrait=true&scale=5` +
       `&spct=1.15&gridlines=false&sheetnames=false&printtitle=false`;
 
@@ -226,18 +225,17 @@ function exportPdfAndNotify(row) {
       headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
     }).getBlob();
 
-    const ts   = sheet.getRange('F5').getValue();
-    const tz   = Session.getScriptTimeZone();
-    const fmt  = Utilities.formatDate(new Date(ts), tz, 'yyyy-MM-dd_HH:mm:ss');
+    const ts  = tpl.getRange('F5').getValue();
+    const fmt = Utilities.formatDate(ts, Session.getScriptTimeZone(), 'yyyy-MM-dd_HH:mm:ss');
     blob.setName(`휴가신청서_${fmt}_${owner}.pdf`);
 
-    const file = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID)
-                         .createFile(blob);
+    const file = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID).createFile(blob);
 
-    const mgrEmail = findUser(
-      dataS().getRange(CONFIG.CELL_MANAGER).getValue()
-    ).email;
+    /* 파일 ID 기록 → 중복 방지 핵심 */
+    fileIdCell.setValue(file.getId());
 
+    /* 담당자 메일 전송 */
+    const mgrEmail = findUser(sheet.getRange(CONFIG.CELL_MANAGER).getValue()).email;
     GmailApp.sendEmail(
       mgrEmail,
       '[완료] 연차/휴가 신청서',
