@@ -21,37 +21,38 @@ function onFormSubmit(e) {
   const row = e.range.getRow();
   const sh  = data();
 
-  // ① per-person 시트 생성 & 타임스탬프 삽입
+  /* === KST 오후 여부 체크 ====================== */
+  const ts      = sh.getRange(row, 1).getValue();                // 타임스탬프
+  const kstHour = +Utilities.formatDate(ts, 'Asia/Seoul', 'H');  // 0 – 23
+  const isAfternoon = kstHour >= 12;                             // 오후만 true
+  /* ============================================ */
+
+  /* ① per-person 시트 생성 & 타임스탬프 삽입 */
   const owner = sh.getRange(row, 2).getValue().toString().trim();
   if (owner) {
     const old = ss.getSheetByName(owner);
     if (old) ss.deleteSheet(old);
     const personal = tpl().copyTo(ss).setName(owner);
-    personal.getRange('F5')
-            .setValue(sh.getRange(row, 1).getValue());
-    // 개인 시트 URL 생성
-    var sheetUrl = ss.getUrl().replace(/\/edit.*$/, '') 
-                + '/edit?gid=' + personal.getSheetId();
+    personal.getRange('F5').setValue(ts);
+    var sheetUrl = ss.getUrl().replace(/\/edit.*$/, '')
+                 + '/edit?gid=' + personal.getSheetId();
   }
 
-  // ② 작성자 서명 수식 (M열)
+  /* ② 작성자 서명 - ③ 팀장 이름 수식 */
   sh.getRange(row, CFG.COL.SIG_AUTHOR)
     .setFormula(`=IFERROR(VLOOKUP($B${row}, '${CFG.LOOKUP}'!B:E, 4, FALSE),"")`);
-
-  // ③ 팀장 이름 수식 (N열)
   sh.getRange(row, CFG.COL.LEADER)
     .setFormula(`=IFERROR(VLOOKUP($B${row}, '${CFG.LOOKUP}'!B:F, 5, FALSE),"")`);
-
-  // 수식이 바로 반영되도록
   SpreadsheetApp.flush();
 
-  /* 팀장 보드로 행 전송 */
-  const leader = data().getRange(row, CFG.COL.LEADER).getDisplayValue().trim();
-  if (leader) pushToBoard('leader', row, sheetUrl);
+  /* 오후 제출일 때만 팀장에게 전송 */
+  if (isAfternoon) {
+    const leader = sh.getRange(row, CFG.COL.LEADER).getDisplayValue().trim();
+    if (leader) pushToBoard('leader', row, sheetUrl);
 
-  exportPdfAndNotify(row);
-
+    }
 }
+
 
 
 /********** 2) 웹앱 진입점 – doGet **********/
@@ -66,6 +67,8 @@ function doGet(e) {
     const leaderName = data().getRange(row, CFG.COL.LEADER).getDisplayValue().trim();
     insertSig(row, CFG.COL.LEADER_SIG, leaderName);
     SpreadsheetApp.flush();
+
+    exportPdfAndNotify(row);
 
   }
 
