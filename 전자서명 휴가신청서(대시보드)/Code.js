@@ -21,6 +21,7 @@ const tpl  = () => ss.getSheetByName(CFG.TEMPLATE);
 /******** 1. 양식 제출 시 – 팀장 이름 넣고 팀장 보드로 ********/
 function onFormSubmit(e){
   const row = e.range.getRow();
+  let sheetUrl = '';  // ← 추가: 개인 시트 URL 담을 변수
 
   /* per-person 시트·타임스탬프 */
   const owner = data().getRange(row,2).getValue().toString().trim();
@@ -28,6 +29,8 @@ function onFormSubmit(e){
     const old = ss.getSheetByName(owner);  if(old) ss.deleteSheet(old);
     const s   = tpl().copyTo(ss).setName(owner);
     s.getRange('F5').setValue(data().getRange(row,1).getValue());
+    // ← 추가: 개인 시트 URL 생성
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${s.getSheetId()}`;
   }
 
   /* L열 팀장 이름 수식 */
@@ -37,7 +40,7 @@ function onFormSubmit(e){
 
   /* 팀장 보드로 행 전송 */
   const leader = data().getRange(row, CFG.COL.LEADER).getDisplayValue().trim();
-  if (leader) pushToBoard('leader', row);
+  if (leader) pushToBoard('leader', row, sheetUrl);
 }
 
 /******** 2. 역할별 흐름 – 대시보드에서 호출 ********/
@@ -45,6 +48,14 @@ function doGet(e) {
   const role = e.parameter.role;
   const row  = parseInt(e.parameter.row, 10);
   if (!role || !row) return out('param err');
+
+  // 개인 시트 URL 미리 계산
+  let sheetUrl = '';
+  const owner = data().getRange(row,2).getDisplayValue().trim();
+  if (owner) {
+    const personal = ss.getSheetByName(owner);
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${personal.getSheetId()}`;
+  }
 
   console.log('doGet 호출 → role=' + role + ', row=' + row);
 
@@ -55,7 +66,7 @@ function doGet(e) {
           .setFormula(`=IFERROR(VLOOKUP(L${row}, '${CFG.LOOKUP}'!N:O, 2, FALSE),"")`);
     SpreadsheetApp.flush();
     const reviewer = data().getRange(row, CFG.COL.REVIEWER).getDisplayValue().trim();
-    if (reviewer) pushToBoard('reviewer', row);
+    if (reviewer) pushToBoard('reviewer', row, sheetUrl);
 
   } else if (role === 'reviewer') {
     const reviewerName = data().getRange(row, CFG.COL.REVIEWER).getDisplayValue().trim();
@@ -64,7 +75,7 @@ function doGet(e) {
           .setFormula(`=IFERROR(VLOOKUP(L${row}, '${CFG.LOOKUP}'!N:P, 3, FALSE),"")`);
     SpreadsheetApp.flush();
     const ceo = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
-    if (ceo) pushToBoard('ceo', row);
+    if (ceo) pushToBoard('ceo', row, sheetUrl);
 
   } else if (role === 'ceo') {
     console.log('[CEO] insertSig 실행');
@@ -189,7 +200,7 @@ function getDocHtml(sheet) {
 
 
 /******** 7. 보드 전송 함수 ********/
-function pushToBoard(role, srcRow, fileUrl) {
+function pushToBoard(role, srcRow, url) {
   const masterId = ss.getId();
   const board    = SpreadsheetApp.openById(CFG.BOARD_ID[role]);
   const sh       = board.getSheets()[0];
@@ -208,6 +219,8 @@ function pushToBoard(role, srcRow, fileUrl) {
 
   // K열(11): 원본 행 번호
   sh.getRange(dstRow, 11).setValue(srcRow);
+  // O열(15): 개인 시트 URL
+  if (url) sh.getRange(dstRow, 15).setValue(url);
 
   if (role !== 'manager') {
     const imp = colLetter =>
