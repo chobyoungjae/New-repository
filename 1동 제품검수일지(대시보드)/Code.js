@@ -27,34 +27,47 @@ function onFormSubmit(e) {
   let sheetUrl = '';                                                                          // 개인 시트 URL을 담을 변수를 초기화합니다.
 
   if (status === '작업 시작 시') {
-    const owner = data().getRange(row, 12).getValue().toString().trim();                      // A시트의 L열(12열)에서 ‘주문자(개인 시트 이름)’를 가져옵니다.
-    if (owner) {
-      const old = ss.getSheetByName(owner);                                                   // 같은 이름으로 이미 만들어진 개인 시트가 있으면
-      if (old) ss.deleteSheet(old);                                                           // 삭제합니다.
-      const s = tpl().copyTo(ss).setName(owner);                                              // 템플릿 시트를 복사해 새 개인 시트를 생성하고 이름을 owner로 지정합니다.
-      s.getRange('M10').setValue(data().getRange(row, 1).getValue());                         // 새로 만든 개인 시트의 M10셀에 A시트의 타임스탬프를 삽입합니다.
-      sheetUrl = ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${s.getSheetId()}`;         // 개인 시트의 URL을 만들고 sheetUrl 변수에 저장합니다.
-    }
+  const owner   = data().getRange(row, 12).getValue().toString().trim();                      // A시트의 L열(12열)에서 ‘주문자’ 가져오기
+  const product = data().getRange(row, 3).getValue().toString().trim();                       // A시트의 C열(3열)에서 ‘제품명’ 가져오기
+  const sheetName = `${owner}_${product}`.replace(/[/\\?%*:|"<>]/g,'-');                       // “주문자_제품명” 조합 및 불가문자 치환
+  if (sheetName) {
+    const old = ss.getSheetByName(sheetName);                                                 // 같은 이름 시트가 있으면
+    if (old) ss.deleteSheet(old);                                                             // 삭제
+    const s = tpl().copyTo(ss).setName(sheetName);                                            // 템플릿 복사 후 “주문자_제품명”으로 시트 생성
+    s.getRange('M10').setValue(data().getRange(row, 1).getValue());                           // M10에 A열 타임스탬프 기록
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${s.getSheetId()}`;           // 생성된 시트 URL 계산
+    data().getRange(row, 15).setValue(sheetUrl);                                              // O열(15열)에 URL 저장
   }
+}
+
   else if (status === '작업 중') {
-    const owner = data().getRange(row, 12).getValue().toString().trim();                      // A시트의 L열(12열)에서 owner를 가져옵니다.
-    if (!owner) return;                                                                       // owner가 없으면 함수 종료합니다.
-    const sh = ss.getSheetByName(owner);                                                      // owner 이름의 개인 시트를 가져옵니다.
-    if (!sh) return;                                                                          // 시트가 없으면 함수 종료합니다.
+  const owner   = data().getRange(row, 12).getValue().toString().trim();              // A시트의 L열(12열)에서 주문자 가져오기
+  const product = data().getRange(row, 3).getValue().toString().trim();               // A시트의 C열(3열)에서 제품명 가져오기
+  const sheetName = `${owner}_${product}`                                             // “주문자_제품명” 조합
+    .replace(/[/\\?%*:|"<>]/g,'-');                                                    // 파일명 불가문자 치환
 
-    const mVals = sh.getRange('M10:M').getValues().flat();                                    // 개인 시트의 M10부터 아래 모든 값을 1차원 배열로 가져옵니다.
-    const nextRow = 10 + mVals.filter(v => v !== '').length;                                  // 비어 있지 않은 M열 셀 개수를 세어 다음에 쓸 행 번호를 계산합니다.
-    sh.getRange(`M${nextRow}`).setValue(data().getRange(row, 1).getValue());                  // 계산된 행(M11, M12…)에 A시트의 타임스탬프를 기록합니다.
-  }
+  if (!sheetName) return;                                                              // 조합된 이름이 없으면 종료
+  const sh = ss.getSheetByName(sheetName);                                            // 해당 이름의 시트 가져오기
+  if (!sh) return;                                                                     // 시트가 없으면 종료
+
+  const mVals   = sh.getRange('M10:M').getValues().flat();                             // M10부터 아래 모든 값
+  const nextRow = 10 + mVals.filter(v => v !== '').length;                             // 다음 빈 행 계산
+  sh.getRange(`M${nextRow}`).setValue(data().getRange(row, 1).getValue());             // 그 행에 타임스탬프 기록
+}
+
   else if (status === '제품생산 완료') {
-    const owner = data().getRange(row, 12).getValue().toString().trim();                      // A시트의 L열(12열)에서 owner를 가져옵니다.
-    if (!owner) return;                                                                       // owner가 없으면 함수 종료합니다.
-    const sh = ss.getSheetByName(owner);                                                      // owner 이름의 개인 시트를 가져옵니다.
-    if (!sh) return;                                                                          // 시트가 없으면 함수 종료합니다.
+  const owner   = data().getRange(row, 12).getValue().toString().trim();            // A시트의 L열(12열)에서 주문자 가져오기
+  const product = data().getRange(row, 3).getValue().toString().trim();             // A시트의 C열(3열)에서 제품명 가져오기
+  const sheetName = `${owner}_${product}`                                           // “주문자_제품명” 조합
+    .replace(/[/\\?%*:|"<>]/g,'-');                                                  // 파일명 불가문자 치환
 
-    const mVals = sh.getRange('M10:M').getValues().flat();                                    // 개인 시트의 M10부터 아래 모든 값을 1차원 배열로 가져옵니다.
-    const nextRow = 10 + mVals.filter(v => v !== '').length;                                  // 비어 있지 않은 M열 셀 개수를 세어 다음에 쓸 행 번호를 계산합니다.
-    sh.getRange(`M${nextRow}`).setValue(data().getRange(row, 1).getValue());                  // 계산된 행(M… )에 A시트의 타임스탬프를 기록합니다.
+  if (!sheetName) return;                                                            // 조합된 이름이 없으면 종료
+  const sh = ss.getSheetByName(sheetName);                                          // 해당 이름의 시트 가져오기
+  if (!sh) return;                                                                   // 시트가 없으면 종료
+
+  const mVals   = sh.getRange('M10:M').getValues().flat();                           // M10부터 아래 모든 값
+  const nextRow = 10 + mVals.filter(v => v !== '').length;                           // 다음 빈 행 계산
+  sh.getRange(`M${nextRow}`).setValue(data().getRange(row, 1).getValue());           // 그 행에 타임스탬프 기록
 
     // ─── 여기가 핵심 ───
     // “제품생산 완료” 시점에도 개인 시트의 gid를 다시 꺼내서 sheetUrl을 재계산해 줘야 O열에 들어갑니다.
@@ -199,9 +212,13 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
 function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
   const lock = LockService.getScriptLock(); lock.waitLock(30000); // << 동시 실행 방지
   try {
-    const owner = data().getRange(row,12).getDisplayValue().trim(); // << 신청자 이름          @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 제품검수일지에서만 라인명으로 기준
-    const sheet = ss.getSheetByName(owner); // << 개인 시트
-    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + owner); // << 예외 처리
+    const owner   = data().getRange(row,12).getDisplayValue().trim(); // << L열: 주문자          @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 제품검수일지에서만 라인명으로 기준
+    const product = data().getRange(row, 3).getDisplayValue().trim(); // << C열: 제품명
+    const sheetName = `${owner}_${product}`                            // << “주문자_제품명” 조합
+      .replace(/[/\\?%*:|"<>]/g,'-');                                  // << 파일명 불가문자 치환
+    const sheet = ss.getSheetByName(sheetName);                        // << 조합된 이름으로 시트 조회
+    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + sheetName); // << sheetName 기준으로 예외 처리
+
 
     const baseUrl = ss.getUrl().replace(/\/edit$/,''); // << 기본 URL
     const gid     = sheet.getSheetId(); // << 시트 ID
@@ -226,8 +243,8 @@ function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
 
     const ts        = data().getRange(row,1).getValue(); // << 타임스탬프
     const formatted = Utilities.formatDate(new Date(ts), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH:mm:ss'); // << 파일명 포맷
-    const product = data().getRange(row, 3).getDisplayValue().trim();
-    blob.setName(`1동 제품검수일지(대시보드)_${formatted}_${product}_${owner}.pdf`); // << Blob 이름 설정             @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    blob.setName(`1동 제품검수일지(대시보드)_${formatted}_${sheetName}.pdf`);        // << sheetName 기준으로 파일명 설정
+
     DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
   } finally {
     lock.releaseLock(); // << 락 해제
