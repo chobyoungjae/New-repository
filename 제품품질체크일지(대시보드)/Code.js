@@ -21,33 +21,54 @@ const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오
 const tpl  = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 
 /******** 1. 양식 제출 시 – 팀장 보드로 ********/ // << 폼 제출 트리거 부분 시작
-function onFormSubmit(e) { // << 폼 제출 시 호출 함수
-  const row      = e.range.getRow(); // << 제출된 행 번호
-  let sheetUrl = ''; // << 개인 시트 URL 초기화
+function onFormSubmit(e) { // << 폼 제출 시 호출
+  const row      = e.range.getRow();                                    // << 제출된 행 번호
+  let sheetUrl = '';                                                    // << 개인 시트 URL 초기화
 
-  // per-person 시트 생성 및 타임스탬프
-  const owner = data().getRange(row,27).getValue().toString().trim(); // << 신청자 이름 획득
-  if (owner) { // << 신청자 이름이 있으면
-    const old = ss.getSheetByName(owner); // << 기존 개인 시트 확인
-    if(old) ss.deleteSheet(old); // << 기존 시트 삭제
-    const s = tpl().copyTo(ss).setName(owner); // << 템플릿 복사 후 개인 시트 생성
-    s.getRange('C3').setValue(data().getRange(row,1).getValue()); // << 타임스탬프 삽입
-    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${s.getSheetId()}`; // << 개인 시트 URL 생성
+  // ▶ 시트명용 데이터 추출
+  const owner   = data().getRange(row, 27).getValue().toString().trim(),// AA열: 주문자
+        product = data().getRange(row,  2).getValue().toString().trim(),// B열: 제품명
+        weight  = data().getRange(row, 25).getValue().toString().trim(),// Y열: 중량
+        lot     = data().getRange(row, 17).getValue().toString().trim(); // Q열: 로트
+
+  if (owner && product && weight && lot) {                              // << 네 값 모두 있을 때만 실행
+    // ▶ 기본 시트명 조합 + 불가문자 치환
+    const baseName = `${owner}_${product}_${weight}_${lot}`             
+                     .replace(/[/\\?%*:|"<>]/g,'-');               // << “주문자_제품명_중량_로트” 형태
+
+    // ▶ 중복 시 “(1)”, “(2)”… 붙여 유니크하게
+    let uniqueName = baseName, i = 1;                                   // << 기본 이름 + 카운터
+    while (ss.getSheetByName(uniqueName)) {                            
+      uniqueName = `${baseName}(${i++})`;                              // << 중복 발견 시 숫자 증가
+    }
+
+    // ▶ 템플릿 복사 + 이름 설정 + 타임스탬프 삽입
+    const s = tpl().copyTo(ss).setName(uniqueName);                     // << 개인 시트 생성
+    s.getRange('C3').setValue(data().getRange(row, 1).getValue());     // << C3에 타임스탬프 기록
+    data().getRange(row, 46).setValue(uniqueName);                                  // ▶ 46 에 uniqueName 저장
+
+    // ▶ 개인 시트 URL 생성 (필요 시 활용)
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'')                     
+               + `/edit?gid=${s.getSheetId()}`;                      // << 개인 시트 링크
+    // data().getRange(row, 15).setValue(sheetUrl);                     // << URL 저장은 생략 가능
   }
 
-  // 팀장명 셋업
+  // ▶ 팀장명 셋업
   data().getRange(row, CFG.COL.CEO)
-    .setFormula(`=IFERROR(VLOOKUP(AA${row}, '${CFG.LOOKUP}'!B:H, 5, FALSE),"")`); // << 팀장 이름 매핑
-  SpreadsheetApp.flush(); // << 변경사항 강제 반영
+      .setFormula(`=IFERROR(VLOOKUP(AA${row}, '${CFG.LOOKUP}'!B:H, 5, FALSE),"")`);
+  SpreadsheetApp.flush();                                              // << 변경사항 강제 반영
 
-  // 보드로 전송
+  // ▶ 보드로 전송
   const leader = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim(); // << 매핑된 팀장 이름
-  if (leader) { // << 팀장 이름이 있을 경우
-    const info = lookupBoardByName(leader); // << 보드 정보 조회
-    if (info) pushToBoard(info.boardId, 'leader', row, sheetUrl); // << 보드에 전송
-    else Logger.log('⚠ 매핑된 팀장 보드가 없습니다: ' + leader); // << 매핑 실패 로그
+  if (leader) {                                                         // << 팀장 이름이 있을 경우
+    const info = lookupBoardByName(leader);                             // << 보드 정보 조회
+    if (info)                                                         
+      pushToBoard(info.boardId, 'leader', row, sheetUrl);              // << 보드에 전송
+    else                                                               
+      Logger.log('⚠ 매핑된 팀장 보드가 없습니다: ' + leader);          // << 매핑 실패 로그
   }
 }
+
 
 /******** 2. 역할별 흐름 – Web App 호출 ********/ // << 역할별 처리 Web App 시작
 function doGet(e) { // << GET 요청 처리 함수
@@ -173,9 +194,10 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
 function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
   const lock = LockService.getScriptLock(); lock.waitLock(30000); // << 동시 실행 방지
   try {
-    const owner = data().getRange(row,27).getDisplayValue().trim(); // << 신청자 이름
-    const sheet = ss.getSheetByName(owner); // << 개인 시트
-    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + owner); // << 예외 처리
+    // ▶ 46열에서 실제 시트명 읽기
+    const sheetName = data().getRange(row, 46).getDisplayValue().trim();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + sheetName);
 
     const baseUrl = ss.getUrl().replace(/\/edit$/,''); // << 기본 URL
     const gid     = sheet.getSheetId(); // << 시트 ID
@@ -199,8 +221,12 @@ function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
 
     const ts        = data().getRange(row,1).getValue(); // << 타임스탬프
     const formatted = Utilities.formatDate(new Date(ts), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH:mm:ss'); // << 파일명 포맷
-    blob.setName(`제품품질체크일지(대시보드)_${formatted}_${owner}.pdf`); // << Blob 이름 설정
+    blob.setName(`제품품질체크일지(대시보드)_${formatted}_${sheetName}.pdf`); // << Blob 이름 설정
     DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
+
+    // ④ PDF 생성에 성공한 경우에만 시트 삭제
+    ss.deleteSheet(sheet);                                                             // << 방금 생성된 개인 시트 삭제
+
   } finally {
     lock.releaseLock(); // << 락 해제
   }
