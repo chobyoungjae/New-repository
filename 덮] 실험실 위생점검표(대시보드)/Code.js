@@ -38,15 +38,15 @@ function onFormSubmit(e) { // << 폼 제출 시 호출
                      .replace(/[/\\?%*:|"<>]/g,'-');               // << “주문자_제품명_중량_로트” 형태
 
     // ▶ 중복 시 “(1)”, “(2)”… 붙여 유니크하게
-    let uniqueName = baseName, i = 1;                                   // << 기본 이름 + 카운터
+    let uniqueName = baseName, i = 1;                                  // << 기본 이름 + 카운터
     while (ss.getSheetByName(uniqueName)) {                            
       uniqueName = `${baseName}(${i++})`;                              // << 중복 발견 시 숫자 증가
     }
 
     // ▶ 템플릿 복사 + 이름 설정 + 타임스탬프 삽입
-    const s = tpl().copyTo(ss).setName(uniqueName);                     // << 개인 시트 생성
+    const s = tpl().copyTo(ss).setName(uniqueName);                    // << 개인 시트 생성
     s.getRange('B3').setValue(data().getRange(row, 1).getValue());     // << C3에 타임스탬프 기록
-    data().getRange(row, 32).setValue(uniqueName);                                  // ▶ 32 에 uniqueName 저장
+    data().getRange(row, 32).setValue(uniqueName);                     // ▶ 32 에 uniqueName 저장
 
     // ▶ 개인 시트 URL 생성 (필요 시 활용)
     sheetUrl = ss.getUrl().replace(/\/edit.*$/,'')                     
@@ -119,16 +119,6 @@ function lookupExecUrlByScriptId(scriptId) { // << 스크립트 ID로 URL 찾기
     if (id === scriptId) return url; // << 일치 시 URL 반환
   }
   throw new Error(`C시트에서 스크립트ID=${scriptId}를 찾을 수 없습니다.`); // << 없으면 에러
-}
-
-/********* 개인 시트 URL 계산 *********/ // << 개인 시트 URL 계산 함수
-function getPersonalSheetUrl(row) {
-  const owner = data().getRange(row,27).getDisplayValue().trim(); // << 신청자 이름
-  if (!owner) return ''; // << 이름 없으면 빈 문자열
-  const sh = ss.getSheetByName(owner); // << 개인 시트
-  return sh
-    ? ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${sh.getSheetId()}` // << URL
-    : ''; // << 없으면 빈
 }
 
 

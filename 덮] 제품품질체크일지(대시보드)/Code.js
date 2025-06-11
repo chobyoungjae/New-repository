@@ -69,49 +69,23 @@ function onFormSubmit(e) { // << 폼 제출 시 호출
   }
 }
 
+/********** 2) 웹앱 진입점 – doGet **********/
+function doGet(e) {
+  const role = e.parameter.role;
+  const row  = parseInt(e.parameter.row, 10);
+  if (!role || !row) return out('param err');
 
-/******** 2. 역할별 흐름 – Web App 호출 ********/ // << 역할별 처리 Web App 시작
-function doGet(e) { // << GET 요청 처리 함수
-  const role = e.parameter.role; // << 요청된 역할 파라미터
-  const row  = parseInt(e.parameter.row, 10); // << 요청된 행 번호
-  if (!role || !row) return out('param err'); // << 파라미터 오류 처리
+  console.log('doGet 호출 → role=' + role + ', row=' + row);
 
-  const sheetUrl = getPersonalSheetUrl(row); // << 개인 시트 URL 획득
-  console.log(`doGet 호출 → role=${role}, row=${row}`); // << 디버그 로그
+  if (role === 'leader') {
+    const leaderName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
+    insertSig(row, CFG.COL.CEO_SIG, leaderName);
+    SpreadsheetApp.flush();
 
-  const flow = [ // << 역할별 흐름 정의
-    { role: 'leader',   nameCol: CFG.COL.CEO,      sigCol: CFG.COL.CEO_SIG }
-  ]; // << 각 단계별 설정
+    exportPdfAndNotify(row);
 
-  const step = flow.find(f => f.role === role); // << 현재 역할 단계 찾기
-  if (!step) return out('invalid role'); // << 유효하지 않은 역할 처리
-
-    // (A) 서명 삽입
-  const name = data().getRange(row, step.nameCol).getDisplayValue().trim(); // << 서명할 이름 획득
-  insertSig(row, step.sigCol, name); // << 서명 수식 삽입
-  SpreadsheetApp.flush(); // << 변경사항 반영
-
-  // (B) 다음 역할이 있으면
-  if (step.lookupCol) { // << 리뷰어 또는 CEO 단계 전
-    data().getRange(row, step.lookupCol)
-      .setFormula(`=IFERROR(VLOOKUP(L${row}, '${CFG.LOOKUP}'!B:H, ${step.lookupIdx}, FALSE),"")`); // << 다음 이름 매핑
-    SpreadsheetApp.flush(); // << 반영
-
-    const nextName = data().getRange(row, step.lookupCol).getDisplayValue().trim(); // << 다음 역할 이름
-    if (nextName) { // << 이름이 있으면
-      const info = lookupBoardByName(nextName); // << 보드 정보 조회
-      if (info) pushToBoard(info.boardId, step.nextRole, row, sheetUrl); // << 보드에 전송
-      else Logger.log(`⚠ 매핑된 ${step.nextRole} 보드가 없습니다: ` + nextName); // << 매핑 실패
-    }
   }
-  // (C) CEO 단계
-  else { // << 마지막 단계인 CEO 서명 후 처리
-    exportPdfAndNotify(row); // << PDF 생성 및 알림
-  }
-
-  return out('서명 완료'); // << 응답
 }
-function out(msg) { return HtmlService.createHtmlOutput(msg); } // << HTML 출력 헬퍼
 
 /********* 서명 수식 삽입 *********/ // << 서명 수식 삽입 함수
 function insertSig(row, col, name) { // << 지정된 셀에 서명 수식 넣기
@@ -143,15 +117,6 @@ function lookupExecUrlByScriptId(scriptId) { // << 스크립트 ID로 URL 찾기
   throw new Error(`C시트에서 스크립트ID=${scriptId}를 찾을 수 없습니다.`); // << 없으면 에러
 }
 
-/********* 개인 시트 URL 계산 *********/ // << 개인 시트 URL 계산 함수
-function getPersonalSheetUrl(row) {
-  const owner = data().getRange(row,27).getDisplayValue().trim(); // << 신청자 이름
-  if (!owner) return ''; // << 이름 없으면 빈 문자열
-  const sh = ss.getSheetByName(owner); // << 개인 시트
-  return sh
-    ? ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${sh.getSheetId()}` // << URL
-    : ''; // << 없으면 빈
-}
 
 /********* 보드 전송 함수 *********/ // << 보드에 데이터 전송 함수
 function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
