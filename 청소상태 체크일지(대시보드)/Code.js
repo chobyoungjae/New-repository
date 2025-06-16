@@ -34,6 +34,8 @@ function testOnFormSubmit() {
 
 
 
+
+
 /**************** CONFIG ****************/ // << 설정 섹션 시작
 const CFG = { // << 전역 설정 객체 선언
   DATA:       'A시트',          // << 메인 데이터 시트 이름
@@ -55,128 +57,104 @@ const ss   = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 
 const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오는 함수
 const tpl  = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 
-/******** 1. 폼 응답 시 – 개인 시트 만들고 이미지 삽입 ********/
-function onFormSubmit(e) {
-  const row = e.range.getRow();          // 응답이 추가된 행 번호
-  let sheetUrl = '';
-
-  /* 유틸: Drive URL → 파일 ID */
-  const extractId = (url) => {
-    if (!url) return '';
-    const m = url.toString().match(/[-\w]{25,}/);   // 25자 이상 ID
-    return m ? m[0] : '';
-  };
-
-  /* 1) 개인 시트 생성 */
-  const owner = data().getRange(row, 2).getDisplayValue().trim(); // 이름
-  if (owner) {
-    const old = ss.getSheetByName(owner);
-    if (old) ss.deleteSheet(old);
-
-    const s = tpl().copyTo(ss).setName(owner);
-    s.getRange('C4').setValue(data().getRange(row, 1).getValue()); // 타임스탬프
-
-    
-    
-    
-    /* 1-A) J(row) / K(row) 이미지를 A16 / E16 에 삽입 */
-try {
-  // ── A시트 J(row) → A16 ──────────────────────────
-  const jId = extractId(data().getRange(row, 10).getValue());
-  if (jId) {
-    /* ▼ 변경: 썸네일(가로 400px) 가져오기 ▼ */
-    const jBlob = UrlFetchApp
-      .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${jId}`,
-             {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
-      .getBlob();
-    const jImg = s.insertImage(jBlob, 1, 16);   // col 1=A, row 16
-    jImg.setWidth(400).setHeight(460);          // 셀보다 살짝 작게
-  }
-
-  // ── A시트 K(row) → E16 ──────────────────────────
-  const kId = extractId(data().getRange(row, 11).getValue());
-  if (kId) {
-    /* ▼ 변경: 썸네일 가져오기 ▼ */
-    const kBlob = UrlFetchApp
-      .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${kId}`,
-             {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
-      .getBlob();
-    const kImg = s.insertImage(kBlob, 5, 16);   // col 5=E, row 16
-    kImg.setWidth(400).setHeight(460);
-  }
-} catch (err) {
-  Logger.log('이미지 삽입 오류: ' + err);
+// ▶ extractId 유틸 함수 (맨 위나 CONFIG 아래에 선언)          << /*  유틸: Drive URL → 파일 ID */
+function extractId(url) {
+  if (!url) return '';
+  const m = url.toString().match(/[-\w]{25,}/);
+  return m ? m[0] : '';
 }
 
+function onFormSubmit(e) { // << 폼 제출 시 호출
+  const row      = e.range.getRow();                                    // << 제출된 행 번호
+  let sheetUrl = '';                                                    // << 개인 시트 URL 초기화
 
-    sheetUrl = ss.getUrl().replace(/\/edit.*$/, '') +
-               `/edit?gid=${s.getSheetId()}`;
-  }
+  // ▶ 시트명용 데이터 추출
+  const owner   = data().getRange(row, 2).getValue().toString().trim(),// B열: 주문자
+        line     = data().getRange(row, 3).getValue().toString().trim(), // C열: 라인
+        product = data().getRange(row,  5).getValue().toString().trim();// E열: 제품명
 
-  /* 2) 팀장 매핑 */
-  data()
-    .getRange(row, CFG.COL.CEO)
-    .setFormula(
-      `=IFERROR(VLOOKUP(B${row}, '${CFG.LOOKUP}'!B:H, 5, FALSE),"")`
-    );
-  SpreadsheetApp.flush();
+  if (owner && line && product) {                              // << 네 값 모두 있을 때만 실행
+    // ▶ 기본 시트명 조합 + 불가문자 치환
+    const baseName = `${owner}_${line}_${product}`             
+                     .replace(/[/\\?%*:|"<>]/g,'-');               // << “주문자_제품명_중량_로트” 형태
 
-  /* 3) 보드 전송 */
-  const leader = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
-  if (leader) {
-    const info = lookupBoardByName(leader);
-    if (info) {
-      pushToBoard(info.boardId, 'leader', row, sheetUrl);
-    } else {
-      Logger.log(`⚠ 매핑된 팀장 보드가 없습니다: ${leader}`);
+    // ▶ 중복 시 “(1)”, “(2)”… 붙여 유니크하게
+    let uniqueName = baseName, i = 1;                                   // << 기본 이름 + 카운터
+    while (ss.getSheetByName(uniqueName)) {                            
+      uniqueName = `${baseName}(${i++})`;                              // << 중복 발견 시 숫자 증가
     }
-  }
-}
+
+    // ▶ 템플릿 복사 + 이름 설정 + 타임스탬프 삽입
+    const s = tpl().copyTo(ss).setName(uniqueName);                     // << 개인 시트 생성
+    s.getRange('B3').setValue(data().getRange(row, 1).getValue());     // << B3에 타임스탬프 기록
+    data().getRange(row, 19).setValue(uniqueName);                                  // ▶ 19 에 uniqueName 저장
 
 
+    // ▶ 이미지 삽입 (여기에 넣으세요)
+    try {
+      const jId = extractId(data().getRange(row, 11).getValue());
+      if (jId) {
+        const jBlob = UrlFetchApp
+          .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${jId}`,
+                 {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
+          .getBlob();
+        const jImg = s.insertImage(jBlob, 1, 16);
+        jImg.setWidth(400).setHeight(460);
+      }
 
-/******** 2. 역할별 흐름 – Web App 호출 ********/ // << 역할별 처리 Web App 시작
-function doGet(e) { // << GET 요청 처리 함수
-  const role = e.parameter.role; // << 요청된 역할 파라미터
-  const row  = parseInt(e.parameter.row, 10); // << 요청된 행 번호
-  if (!role || !row) return out('param err'); // << 파라미터 오류 처리
-
-  const sheetUrl = getPersonalSheetUrl(row); // << 개인 시트 URL 획득
-  console.log(`doGet 호출 → role=${role}, row=${row}`); // << 디버그 로그
-
-  const flow = [ // << 역할별 흐름 정의
-    { role: 'leader',   nameCol: CFG.COL.CEO,      sigCol: CFG.COL.CEO_SIG }
-  ]; // << 각 단계별 설정
-
-  const step = flow.find(f => f.role === role); // << 현재 역할 단계 찾기
-  if (!step) return out('invalid role'); // << 유효하지 않은 역할 처리
-
-    // (A) 서명 삽입
-  const name = data().getRange(row, step.nameCol).getDisplayValue().trim(); // << 서명할 이름 획득
-  insertSig(row, step.sigCol, name); // << 서명 수식 삽입
-  SpreadsheetApp.flush(); // << 변경사항 반영
-
-  // (B) 다음 역할이 있으면
-  if (step.lookupCol) { // << 리뷰어 또는 CEO 단계 전
-    data().getRange(row, step.lookupCol)
-      .setFormula(`=IFERROR(VLOOKUP(L${row}, '${CFG.LOOKUP}'!B:H, ${step.lookupIdx}, FALSE),"")`); // << 다음 이름 매핑
-    SpreadsheetApp.flush(); // << 반영
-
-    const nextName = data().getRange(row, step.lookupCol).getDisplayValue().trim(); // << 다음 역할 이름
-    if (nextName) { // << 이름이 있으면
-      const info = lookupBoardByName(nextName); // << 보드 정보 조회
-      if (info) pushToBoard(info.boardId, step.nextRole, row, sheetUrl); // << 보드에 전송
-      else Logger.log(`⚠ 매핑된 ${step.nextRole} 보드가 없습니다: ` + nextName); // << 매핑 실패
+      const kId = extractId(data().getRange(row, 12).getValue());
+      if (kId) {
+        const kBlob = UrlFetchApp
+          .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${kId}`,
+                 {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
+          .getBlob();
+        const kImg = s.insertImage(kBlob, 5, 16);
+        kImg.setWidth(400).setHeight(460);
+      }
+    } catch (err) {
+      Logger.log('이미지 삽입 오류: ' + err);
     }
-  }
-  // (C) CEO 단계
-  else { // << 마지막 단계인 CEO 서명 후 처리
-    exportPdfAndNotify(row); // << PDF 생성 및 알림
+
+    // ▶ 개인 시트 URL 생성 (필요 시 활용)
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/,'')                     
+               + `/edit?gid=${s.getSheetId()}`;                      // << 개인 시트 링크
+    // data().getRange(row, 15).setValue(sheetUrl);                     // << URL 저장은 생략 가능
   }
 
-  return out('서명 완료'); // << 응답
+  // ▶ 팀장명 셋업
+  data().getRange(row, CFG.COL.CEO)
+      .setFormula(`=IFERROR(VLOOKUP(B${row}, '${CFG.LOOKUP}'!B:H, 5, FALSE),"")`);
+  SpreadsheetApp.flush();                                              // << 변경사항 강제 반영
+
+  // ▶ 보드로 전송
+  const leader = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim(); // << 매핑된 팀장 이름
+  if (leader) {                                                         // << 팀장 이름이 있을 경우
+    const info = lookupBoardByName(leader);                             // << 보드 정보 조회
+    if (info)                                                         
+      pushToBoard(info.boardId, 'leader', row, sheetUrl);              // << 보드에 전송
+    else                                                               
+      Logger.log('⚠ 매핑된 팀장 보드가 없습니다: ' + leader);          // << 매핑 실패 로그
+  }
 }
-function out(msg) { return HtmlService.createHtmlOutput(msg); } // << HTML 출력 헬퍼
+
+
+/********** 2) 웹앱 진입점 – doGet **********/
+function doGet(e) {
+  const role = e.parameter.role;
+  const row  = parseInt(e.parameter.row, 10);
+  if (!role || !row) return out('param err');
+
+  console.log('doGet 호출 → role=' + role + ', row=' + row);
+
+  if (role === 'leader') {
+    const leaderName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
+    insertSig(row, CFG.COL.CEO_SIG, leaderName);
+    SpreadsheetApp.flush();
+
+    exportPdfAndNotify(row);
+
+  }
+}
 
 /********* 서명 수식 삽입 *********/ // << 서명 수식 삽입 함수
 function insertSig(row, col, name) { // << 지정된 셀에 서명 수식 넣기
@@ -208,15 +186,6 @@ function lookupExecUrlByScriptId(scriptId) { // << 스크립트 ID로 URL 찾기
   throw new Error(`C시트에서 스크립트ID=${scriptId}를 찾을 수 없습니다.`); // << 없으면 에러
 }
 
-/********* 개인 시트 URL 계산 *********/ // << 개인 시트 URL 계산 함수
-function getPersonalSheetUrl(row) {
-  const owner = data().getRange(row,2).getDisplayValue().trim(); // << 신청자 이름
-  if (!owner) return ''; // << 이름 없으면 빈 문자열
-  const sh = ss.getSheetByName(owner); // << 개인 시트
-  return sh
-    ? ss.getUrl().replace(/\/edit.*$/,'') + `/edit?gid=${sh.getSheetId()}` // << URL
-    : ''; // << 없으면 빈
-}
 
 /********* 보드 전송 함수 *********/ // << 보드에 데이터 전송 함수
 function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
@@ -259,9 +228,11 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
 function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
   const lock = LockService.getScriptLock(); lock.waitLock(30000); // << 동시 실행 방지
   try {
-    const owner = data().getRange(row,2).getDisplayValue().trim(); // << 신청자 이름
-    const sheet = ss.getSheetByName(owner); // << 개인 시트
-    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + owner); // << 예외 처리
+
+    // ▶ 19열에서 실제 시트명 읽기
+    const sheetName = data().getRange(row, 19).getDisplayValue().trim();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + sheetName);
 
     const baseUrl = ss.getUrl().replace(/\/edit$/,''); // << 기본 URL
     const gid     = sheet.getSheetId(); // << 시트 ID
@@ -285,8 +256,12 @@ function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
 
     const ts        = data().getRange(row,1).getValue(); // << 타임스탬프
     const formatted = Utilities.formatDate(new Date(ts), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH:mm:ss'); // << 파일명 포맷
-    blob.setName(`청소상태 체크일지(대시보드)_${formatted}_${owner}.pdf`); // << Blob 이름 설정
+    blob.setName(`청소상태 체크일지(대시보드)_${formatted}_${sheetName}.pdf`); // << Blob 이름 설정
     DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
+
+    // ④ PDF 생성에 성공한 경우에만 시트 삭제
+    ss.deleteSheet(sheet);                                                             // << 방금 생성된 개인 시트 삭제
+    
   } finally {
     lock.releaseLock(); // << 락 해제
   }
