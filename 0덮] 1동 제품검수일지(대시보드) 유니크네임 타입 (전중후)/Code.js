@@ -50,9 +50,14 @@ function onFormSubmit(e) {
   const status = data().getRange(row, 2).getValue().toString().trim();            // B열: 상태
 
   if (status === '작업 시작 시') {
-    const owner   = data().getRange(row, 12).getValue().toString().trim();         // L열: 주문자
+    const line   = data().getRange(row, 12).getValue().toString().trim();         // L열: 주문자
     const product = data().getRange(row, 3).getValue().toString().trim();          // C열: 제품명
-    const baseName = `${owner}_${product}`.replace(/[/\\?%*:|"<>]/g,'-');          // 기본 시트명 조합
+    const weightVal = data().getRange(row, 5).getValue().toString().trim();        // E열: 숫자 중량
+    const weight = `${weightVal}g`; // g 고정 
+    const lot     = data().getRange(row, 9).getValue().toString().trim();          // I열: 로트
+    const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
+    const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
+    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g,'-'); // 기본 시트명 조합
 
     let uniqueName = baseName, i = 1;                                              // 첫 시도는 baseName
     while (ss.getSheetByName(uniqueName)) {                                        // 중복 시
@@ -69,12 +74,21 @@ function onFormSubmit(e) {
     // O열에 기록된 uniqueName 우선, 없으면 가장 최근 생성된 시트로 폴백
     let sheetName = data().getRange(row, 15).getDisplayValue().trim();              // ▶ O열에서 uniqueName 읽기
     if (!sheetName) {                                                               // 비어 있으면
-      const owner   = data().getRange(row, 12).getDisplayValue().trim();            // L열: 주문자
-      const product = data().getRange(row, 3).getDisplayValue().trim();             // C열: 제품명
-      const baseName = `${owner}_${product}`.replace(/[/\\?%*:|"<>]/g,'-');          // 기본명 조합
+      const line   = data().getRange(row, 12).getValue().toString().trim();         // L열: 주문자
+      const product = data().getRange(row, 3).getValue().toString().trim();          // C열: 제품명
+      const weightVal = data().getRange(row, 5).getValue().toString().trim();        // E열: 숫자 중량
+      const weight = `${weightVal}g`; // g 고정 
+      const lot     = data().getRange(row, 9).getValue().toString().trim();          // I열: 로트
+      const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
+      const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
+      const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g,'-'); // 기본 시트명 조합
+      
+      
       const shLatest = getLatestSheet(baseName);                                    // 최근 시트 객체
       if (!shLatest) return;                                                        // 없다면 종료
       sheetName = shLatest.getName();                                               // 이름으로 갱신
+
+      data().getRange(row, 15).setValue(sheetName);                                 // 💡 fallback 으로 찾은 시트 이름 O열에 기록
     }
     const sh = ss.getSheetByName(sheetName);                                        // ▶ 정확히 해당 시트만 조회
     if (!sh) return;                                                                // 없으면 종료
@@ -89,12 +103,21 @@ function onFormSubmit(e) {
     // O열에 기록된 uniqueName 우선, 없으면 가장 최근 생성된 시트로 폴백
     let sheetName = data().getRange(row, 15).getDisplayValue().trim();              // ▶ O열에서 uniqueName 읽기
     if (!sheetName) {
-      const owner   = data().getRange(row, 12).getDisplayValue().trim();            // L열: 주문자
-      const product = data().getRange(row, 3).getDisplayValue().trim();             // C열: 제품명
-      const baseName = `${owner}_${product}`.replace(/[/\\?%*:|"<>]/g,'-');          // 기본명 조합
+      const line   = data().getRange(row, 12).getValue().toString().trim();         // L열: 주문자
+      const product = data().getRange(row, 3).getValue().toString().trim();          // C열: 제품명
+      const weightVal = data().getRange(row, 5).getValue().toString().trim();        // E열: 숫자 중량
+      const weight = `${weightVal}g`; // g 고정 
+      const lot     = data().getRange(row, 9).getValue().toString().trim();          // I열: 로트
+      const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
+      const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
+      const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g,'-'); // 기본 시트명 조합
+      
+      
       const shLatest = getLatestSheet(baseName);                                    // 최근 시트 객체
       if (!shLatest) return;
       sheetName = shLatest.getName();
+
+      data().getRange(row, 15).setValue(sheetName);                                 // 💡 fallback 으로 찾은 시트 이름 O열에 기록
     }
     const sh = ss.getSheetByName(sheetName);                                        // ▶ 정확히 해당 시트만 조회
     if (!sh) return;
@@ -174,15 +197,12 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   const dstRow   = sh.getLastRow() + 1; // << 추가할 행번호
 
   // 1) A~G 값 쓰기
-  const ts      = new Date(); // << 타임스탬프
-  const docName = '1동 제품검수일지(대시보드)'; // << 문서명                                 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-  const vals    = [ts, docName,
-                   data().getRange(srcRow,2).getValue(),
-                   data().getRange(srcRow,3).getValue(),
-                   data().getRange(srcRow,7).getValue(),
-                   data().getRange(srcRow,8).getValue(),
-                   data().getRange(srcRow,10).getValue()]; // << 전송할 데이터
-  sh.getRange(dstRow,1,1,7).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
+  const ts      = new Date();                                                          // A열 << 타임스탬프
+  const docName = '1동 제품검수일지(대시보드)';                                            // B열  << 문서명       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+  const vals    = [ts, docName,                                                        
+                   data().getRange(srcRow,6).getValue(),                               // C열
+                   data().getRange(srcRow,15).getValue()];                              // D열                       
+  sh.getRange(dstRow,1,1,4).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
 
   // 2) 원본 행 번호 및 개인 시트 URL
   sh.getRange(dstRow,11).setValue(srcRow); // << 원본 행 기록
@@ -211,9 +231,16 @@ function exportPdfAndNotify(row) {
   // ① O열(15)에 저장된 uniqueName 우선, 없으면 baseName으로 폴백하여 최신 시트 찾기
   let sheetName = data().getRange(row, 15).getDisplayValue().trim();         // ▶ O열에서 uniqueName 읽기
   if (!sheetName) {                                                           
-    const owner    = data().getRange(row, 12).getDisplayValue().trim();       // ▶ L열: 주문자
-    const product  = data().getRange(row, 3).getDisplayValue().trim();        // ▶ C열: 제품명
-    const baseName = `${owner}_${product}`.replace(/[/\\?%*:|"<>]/g,'-');      // ▶ baseName 조합
+    const line   = data().getRange(row, 12).getValue().toString().trim();         // L열: 주문자
+    const product = data().getRange(row, 3).getValue().toString().trim();          // C열: 제품명
+    const weightVal = data().getRange(row, 5).getValue().toString().trim();        // E열: 숫자 중량
+    const weight = `${weightVal}g`; // g 고정 
+    const lot     = data().getRange(row, 9).getValue().toString().trim();          // I열: 로트
+    const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
+    const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
+    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g,'-'); // 기본 시트명 조합
+    
+    
     const shLatest = getLatestSheet(baseName);                                 // ▶ 가장 최근(n 최대) 시트 객체
     if (!shLatest) { lock.releaseLock(); throw new Error('시트가 없습니다: ' + baseName); }
     sheetName = shLatest.getName();                                            // ▶ fallback된 시트명
@@ -233,7 +260,7 @@ function exportPdfAndNotify(row) {
       + '&top_margin=0.2&bottom_margin=0.2&left_margin=0.2&right_margin=0.2'           // << 여백 설정
       + '&gridlines=false&sheetnames=false&printtitle=false'                          // << 인쇄 옵션
       + '&horizontal_alignment=CENTER&vertical_alignment=MIDDLE'                      
-      + '&r1=0&r2=14&c1=0&c2=9';                                                       // << 인쇄 범위
+      + '&r1=0&r2=15&c1=0&c2=9';                                                       // << 인쇄 범위
 
     const blob = UrlFetchApp.fetch(pdfUrl, {                                           
       headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }                 // << OAuth 토큰 사용

@@ -20,20 +20,30 @@ const ss   = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 
 const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오는 함수
 const tpl  = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 
+// ▶ extractId 유틸 함수 (맨 위나 CONFIG 아래에 선언)          << /*  유틸: Drive URL → 파일 ID */
+function extractId(url) {
+  if (!url) return '';
+  const m = url.toString().match(/[-\w]{25,}/);
+  return m ? m[0] : '';
+}
+
 /******** 1. 양식 제출 시 – 팀장 보드로 ********/ // << 폼 제출 트리거 부분 시작
 function onFormSubmit(e) { // << 폼 제출 시 호출
   const row      = e.range.getRow();                                    // << 제출된 행 번호
   let sheetUrl = '';                                                    // << 개인 시트 URL 초기화
 
   // ▶ 시트명용 데이터 추출
-  const owner   = data().getRange(row, 27).getValue().toString().trim(),// AA열: 주문자
+  const line   = data().getRange(row, 3).getValue().toString().trim(),// AA열: 주문자
         product = data().getRange(row,  2).getValue().toString().trim(),// B열: 제품명
-        weight  = data().getRange(row, 25).getValue().toString().trim(),// Y열: 중량
+        weightVal = data().getRange(row, 25).getValue().toString().trim(),        // Y열: 숫자 중량
+        weight = `${weightVal}g`, // g 고정 
         lot     = data().getRange(row, 17).getValue().toString().trim(); // Q열: 로트
+        expiryRaw = data().getRange(row, 15).getValue(), // O열: 유통기한 (Date 객체)
+        expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
 
-  if (owner && product && weight && lot) {                              // << 네 값 모두 있을 때만 실행
+  if (line && product && weight && lot) {                              // << 네 값 모두 있을 때만 실행
     // ▶ 기본 시트명 조합 + 불가문자 치환
-    const baseName = `${owner}_${product}_${weight}_${lot}`             
+    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`             
                      .replace(/[/\\?%*:|"<>]/g,'-');               // << “주문자_제품명_중량_로트” 형태
 
     // ▶ 중복 시 “(1)”, “(2)”… 붙여 유니크하게
@@ -46,6 +56,42 @@ function onFormSubmit(e) { // << 폼 제출 시 호출
     const s = tpl().copyTo(ss).setName(uniqueName);                     // << 개인 시트 생성
     s.getRange('C3').setValue(data().getRange(row, 1).getValue());     // << C3에 타임스탬프 기록
     data().getRange(row, 46).setValue(uniqueName);                                  // ▶ 46 에 uniqueName 저장
+
+    // ▶ 이미지 삽입 (여기에 넣으세요)
+    try {
+      const ajId = extractId(data().getRange(row, 36).getValue());
+      if (ajId) {
+        const jBlob = UrlFetchApp
+          .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${ajId}`,
+                 {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
+          .getBlob();
+        const ajImg = s.insertImage(jBlob, 1, 48);
+        ajImg.setWidth(619).setHeight(271);
+      }
+
+      const akId = extractId(data().getRange(row, 37).getValue());
+      if (akId) {
+        const kBlob = UrlFetchApp
+          .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${akId}`,
+                 {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
+          .getBlob();
+        const akImg = s.insertImage(kBlob, 1, 62);
+        akImg.setWidth(619).setHeight(271);
+      }
+
+      const alId = extractId(data().getRange(row, 38).getValue());
+      if (alId) {
+        const kBlob = UrlFetchApp
+          .fetch(`https://drive.google.com/thumbnail?sz=w400&id=${alId}`,
+                 {headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}})
+          .getBlob();
+        const alImg = s.insertImage(kBlob, 1, 76);
+        alImg.setWidth(619).setHeight(271);
+      }
+    } catch (err) {
+      Logger.log('이미지 삽입 오류: ' + err);
+    }
+
 
     // ▶ 개인 시트 URL 생성 (필요 시 활용)
     sheetUrl = ss.getUrl().replace(/\/edit.*$/,'')                     
@@ -128,12 +174,9 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   const ts      = new Date(); // << 타임스탬프
   const docName = '제품품질체크일지(대시보드)'; // << 문서명
   const vals    = [ts, docName,
-                   data().getRange(srcRow,2).getValue(),
-                   data().getRange(srcRow,3).getValue(),
-                   data().getRange(srcRow,7).getValue(),
-                   data().getRange(srcRow,8).getValue(),
-                   data().getRange(srcRow,10).getValue()]; // << 전송할 데이터
-  sh.getRange(dstRow,1,1,7).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
+                   data().getRange(srcRow,27).getValue(),
+                   data().getRange(srcRow,46).getValue()];
+  sh.getRange(dstRow,1,1,4).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
 
   // 2) 원본 행 번호 및 개인 시트 URL
   sh.getRange(dstRow,11).setValue(srcRow); // << 원본 행 기록
@@ -171,7 +214,7 @@ function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
       '&gid='               + gid +        // 출력할 시트 ID
       '&size=A4' +                      // 용지 크기
       '&portrait=true' +                // 세로 방향
-      '&scale=4' +                      // 4 = Fit to Page
+      '&scale=1' +                      // 4 = Fit to Page
       '&top_margin=0.2' +               // 여백 최소화
       '&bottom_margin=0.2' +
       '&left_margin=0.2' +
