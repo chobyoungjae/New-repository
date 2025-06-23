@@ -75,7 +75,7 @@ function onFormSubmit(e) { // << 폼 제출 시 호출
 
   if (owner && line && product) {                              // << 네 값 모두 있을 때만 실행
     // ▶ 기본 시트명 조합 + 불가문자 치환
-    const baseName = `${owner}_${line}_${product}`             
+    const baseName = `${line}_${product}`             
                      .replace(/[/\\?%*:|"<>]/g,'-');               // << “주문자_제품명_중량_로트” 형태
 
     // ▶ 중복 시 “(1)”, “(2)”… 붙여 유니크하게
@@ -197,22 +197,19 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   const ts      = new Date(); // << 타임스탬프
   const docName = '청소상태 체크일지(대시보드)'; // << 문서명
   const vals    = [ts, docName,
-                   data().getRange(srcRow,2).getValue(),
-                   data().getRange(srcRow,3).getValue(),
-                   data().getRange(srcRow,7).getValue(),
-                   data().getRange(srcRow,8).getValue(),
-                   data().getRange(srcRow,10).getValue()]; // << 전송할 데이터
-  sh.getRange(dstRow,1,1,7).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
+                   data().getRange(srcRow,2).getValue(), // << 전송할 데이터
+                   data().getRange(srcRow,19).getValue()]; // << 전송할 데이터
+  sh.getRange(dstRow,1,1,4).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss"); // << 쓰기 및 서식 적용
 
   // 2) 원본 행 번호 및 개인 시트 URL
   sh.getRange(dstRow,11).setValue(srcRow); // << 원본 행 기록
   if (url) sh.getRange(dstRow,15).setValue(url); // << 개인 시트 링크 기록
 
   // 3) IMPORTRANGE 설정
-  const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","A시트!${c}${srcRow}"),"")`; // << IMPORTRANGE 수식
-  sh.getRange(dstRow,8).setFormula(imp('M')); // << 서명자
-  sh.getRange(dstRow,9).setFormula(imp('O')); // << 다음 서명자
-  sh.getRange(dstRow,10).setFormula(imp('Q')); // << 최종 서명자
+  const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`; // << IMPORTRANGE 수식
+  sh.getRange(dstRow,8).setFormula(imp('O')); // << 서명자
+  // sh.getRange(dstRow,9).setFormula(imp('O')); // << 다음 서명자      
+  // sh.getRange(dstRow,10).setFormula(imp('Q')); // << 최종 서명자
 
   // 4) 체크박스
   sh.getRange(dstRow,12).insertCheckboxes(); // << 체크박스 삽입

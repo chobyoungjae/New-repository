@@ -183,10 +183,10 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   if (url) sh.getRange(dstRow,15).setValue(url); // << 개인 시트 링크 기록
 
   // 3) IMPORTRANGE 설정
-  const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","A시트!${c}${srcRow}"),"")`; // << IMPORTRANGE 수식
+  const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`; // << IMPORTRANGE 수식
   sh.getRange(dstRow,8).setFormula(imp('ai')); // << 서명자
-  sh.getRange(dstRow,9).setFormula(imp('O')); // << 다음 서명자
-  sh.getRange(dstRow,10).setFormula(imp('Q')); // << 최종 서명자
+  // sh.getRange(dstRow,9).setFormula(imp('O')); // << 다음 서명자                 @@ 주석처리
+  // sh.getRange(dstRow,10).setFormula(imp('Q')); // << 최종 서명자                  @@ 주석처리
 
   // 4) 체크박스
   sh.getRange(dstRow,12).insertCheckboxes(); // << 체크박스 삽입

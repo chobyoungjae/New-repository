@@ -192,21 +192,21 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   const ts       = new Date();
   const docName  = '온습도 점검표(대시보드)';
   const name     = data().getRange(srcRow, 2).getValue();
-  const type     = data().getRange(srcRow, 3).getValue();
-  const start    = data().getRange(srcRow, 7).getValue();
-  const end      = data().getRange(srcRow, 8).getValue();
-  const reason   = data().getRange(srcRow,10).getValue();
-  sh.getRange(dstRow, 1, 1, 7)
+  // const type     = data().getRange(srcRow, 3).getValue();
+  // const start    = data().getRange(srcRow, 7).getValue();
+  // const end      = data().getRange(srcRow, 8).getValue();
+  //const reason   = data().getRange(srcRow,10).getValue();
+  sh.getRange(dstRow, 1, 1, 3)
     .setValues([[ts, docName, name, type, start, end, reason]]);
   sh.getRange(dstRow, 1).setNumberFormat("yyyy-MM-dd HH:mm:ss");
   sh.getRange(dstRow, 11).setValue(srcRow);
   if (url) sh.getRange(dstRow, 15).setValue(url);
   if (role !== 'manager') {
     const imp = colLetter =>
-      `=IFERROR(IMPORTRANGE("${masterId}", "A시트!${colLetter}${srcRow}"),"")`;
+      `=IMPORTRANGE("${masterId}", "A시트!${colLetter}${srcRow}")`;
     sh.getRange(dstRow, 8).setFormula(imp('o'));
-    sh.getRange(dstRow, 9).setFormula(imp('z'));
-    sh.getRange(dstRow,10).setFormula(imp('Q'));
+    // sh.getRange(dstRow, 9).setFormula(imp('z'));
+    //sh.getRange(dstRow,10).setFormula(imp('Q'));
     sh.getRange(dstRow, 12).insertCheckboxes();
   } else {
     sh.getRange(dstRow, 8).setValue(fileUrl);
