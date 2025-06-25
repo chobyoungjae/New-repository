@@ -14,7 +14,8 @@ const CFG = { // << 전역 설정 객체 선언
     CEO_SIG:    17             // << CEO 서명 컬럼 인덱스
   },
   
-  PDF_FOLDER: '1X4FSfEkNgl59qXOvS2SyEz_aH44xSc7X' // << PDF 저장 폴더 ID
+  PDF_FOLDER: '1X4FSfEkNgl59qXOvS2SyEz_aH44xSc7X', // << PDF 저장 폴더 ID
+  SIGN_FOLDER: '1USPbFAffUUP6G8AFmpNyH02YuK2umeXx' // << 서명 이미지 저장 폴더
 }; // << CFG 객체 끝
 
 const ss   = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 참조
@@ -52,62 +53,16 @@ function onFormSubmit(e) { // << 폼 제출 시 호출 함수
 
 /******** 2. 역할별 흐름 – Web App 호출 ********/ // << 역할별 처리 Web App 시작
 function doGet(e) {
-  const row = e.parameter.row;
+  const row  = e.parameter.row;
   const role = e.parameter.role;
-  if (!row || !role) return HtmlService.createHtmlOutput("잘못된 접근");
+  if (!row || !role) return HtmlService.createHtmlOutput("잘못된 접근입니다.");
 
-  return HtmlService.createHtmlOutput(`
-    <canvas id="sig" width="300" height="100" style="border:1px solid #000"></canvas><br>
-    <button onclick="saveSig()">서명 저장</button>
-    <script type="text/javascript">
-      const row = "${row}";
-      const role = "${role}";
-      const c = document.getElementById('sig');
-      const ctx = c.getContext('2d');
-      let drawing = false;
-
-      c.addEventListener('mousedown', e => {
-        drawing = true;
-        ctx.beginPath();
-        ctx.moveTo(e.offsetX, e.offsetY);
-      });
-      c.addEventListener('mousemove', e => {
-        if (drawing) {
-          ctx.lineTo(e.offsetX, e.offsetY);
-          ctx.stroke();
-        }
-      });
-      c.addEventListener('mouseup', () => {
-        drawing = false;
-      });
-
-      c.addEventListener('touchstart', e => {
-        drawing = true;
-        const touch = e.touches[0];
-        ctx.beginPath();
-        ctx.moveTo(touch.clientX - c.offsetLeft, touch.clientY - c.offsetTop);
-      });
-      c.addEventListener('touchmove', e => {
-        if (drawing) {
-          e.preventDefault();
-          const touch = e.touches[0];
-          ctx.lineTo(touch.clientX - c.offsetLeft, touch.clientY - c.offsetTop);
-          ctx.stroke();
-        }
-      });
-      c.addEventListener('touchend', () => {
-        drawing = false;
-      });
-
-      function saveSig() {
-        const img = c.toDataURL();
-        google.script.run
-          .withSuccessHandler(() => alert("저장 완료"))
-          .saveSignature(img, row, role);
-      }
-    </script>
-  `).setWidth(400).setHeight(300);
+  const template = HtmlService.createTemplateFromFile("popup");
+  template.row = row;
+  template.role = role;
+  return template.evaluate().setWidth(420).setHeight(300);
 }
+
 
 
 
@@ -151,36 +106,72 @@ function getPersonalSheetUrl(row) {
     : ''; // << 없으면 빈
 }
 
-function saveSignature(dataUrl, row, role) {
-  const blob = Utilities.newBlob(Utilities.base64Decode(dataUrl.split(',')[1]), 'image/png', 'sig.png');
-  const file = DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  const url = `https://drive.google.com/uc?export=view&id=${file.getId()}`;
-  const col = role === 'leader' ? CFG.COL.LEADER_SIG :
-              role === 'reviewer' ? CFG.COL.REVIEWER_SIG :
-              CFG.COL.CEO_SIG;
-  data().getRange(row, col).setFormula(`=IMAGE("${url}")`);
+/** ① 설정 시트 말고 config 에 직접 추가해 놓은 SIGN_FOLDER 사용 **/
+function getSignFolder() {
+  return DriveApp.getFolderById(CFG.SIGN_FOLDER);
+}
 
-  if (role === 'leader') {
-    data().getRange(row, CFG.COL.REVIEWER)
-      .setFormula(`=VLOOKUP(B${row}, '${CFG.LOOKUP}'!B:H, 6, FALSE)`);
+/**
+ * 3. saveSignature – 서명 이미지 저장 & 메인시트 반영
+ */
+function saveSignature(dataUrl, row, role) {
+  // 1) signer 이름
+  const signer = data()
+    .getRange(row,
+      role==='leader'?CFG.COL.LEADER:
+      role==='reviewer'?CFG.COL.REVIEWER:
+                        CFG.COL.CEO
+    ).getDisplayValue().trim().replace(/\s+/g,'_');
+
+  // 2) 이전 동일 파일 삭제
+  const folder = DriveApp.getFolderById(CFG.SIGN_FOLDER);
+  const prefix = `sig_${role}_`;
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const f = files.next();
+    if (f.getName().startsWith(prefix)) {
+      f.setTrashed(true);
+    }
+  }
+
+  // 3) 새 Blob 생성
+  const bin  = Utilities.base64Decode(dataUrl.split(',')[1]);
+  const name = `${prefix}${signer}_${Date.now()}.png`;
+  const blob = Utilities.newBlob(bin,'image/png',name);
+
+  // 4) 폴더에 저장
+  const file = folder.createFile(blob)
+    .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // 5) 시트에 IMAGE() 수식 삽입 (크기 자동 조정)
+  const url    = `https://drive.google.com/uc?export=view&id=${file.getId()}`;
+  const sigCol = role==='leader'?CFG.COL.LEADER_SIG:
+                 role==='reviewer'?CFG.COL.REVIEWER_SIG:
+                                   CFG.COL.CEO_SIG;
+  data().getRange(row, sigCol).setFormula(`=IMAGE("${url}",1)`);
+
+  // 6) 다음 단계로 push
+  if (role==='leader') {
+    data().getRange(row,CFG.COL.REVIEWER)
+      .setFormula(`=IFERROR(VLOOKUP(B${row},'${CFG.LOOKUP}'!B:H,6,FALSE),"")`);
     SpreadsheetApp.flush();
-    const nextName = data().getRange(row, CFG.COL.REVIEWER).getDisplayValue().trim();
-    const info = lookupBoardByName(nextName);
-    if (info) pushToBoard(info.boardId, 'reviewer', row, getPersonalSheetUrl(row));
-  } else if (role === 'reviewer') {
-    data().getRange(row, CFG.COL.CEO)
-      .setFormula(`=VLOOKUP(B${row}, '${CFG.LOOKUP}'!B:H, 7, FALSE)`);
+    const next = data().getRange(row,CFG.COL.REVIEWER).getDisplayValue().trim();
+    const info = lookupBoardByName(next);
+    if (info) pushToBoard(info.boardId,'reviewer',row,getPersonalSheetUrl(row));
+
+  } else if (role==='reviewer') {
+    data().getRange(row,CFG.COL.CEO)
+      .setFormula(`=IFERROR(VLOOKUP(B${row},'${CFG.LOOKUP}'!B:H,7,FALSE),"")`);
     SpreadsheetApp.flush();
-    const nextName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
-    const info = lookupBoardByName(nextName);
-    if (info) pushToBoard(info.boardId, 'ceo', row, getPersonalSheetUrl(row));
-  } else if (role === 'ceo') {
+    const next = data().getRange(row,CFG.COL.CEO).getDisplayValue().trim();
+    const info = lookupBoardByName(next);
+    if (info) pushToBoard(info.boardId,'ceo',row,getPersonalSheetUrl(row));
+
+  } else if (role==='ceo') {
     updateRowInCalendar(data(), row);
     exportPdfAndNotify(row);
   }
 }
-
 
 
 
@@ -193,28 +184,42 @@ function pushToBoard(boardId, role, srcRow, url) {
   const ts = new Date();
   const docName = '전자서명 휴가신청서(대시보드 전자서명)테스트';
   const vals = [ts, docName,
-    data().getRange(srcRow, 2).getValue(),
-    data().getRange(srcRow, 3).getValue(),
-    data().getRange(srcRow, 7).getValue(),
-    data().getRange(srcRow, 8).getValue(),
-    data().getRange(srcRow, 10).getValue()];
+    data().getRange(srcRow, 2).getValue(),  // 이름
+    data().getRange(srcRow, 3).getValue(),  // 부서
+    data().getRange(srcRow, 7).getValue(),  // 시작일
+    data().getRange(srcRow, 8).getValue(),  // 종료일
+    data().getRange(srcRow, 10).getValue()  // 사유
+  ];
   sh.getRange(dstRow, 1, 1, 7).setValues([vals]).setNumberFormat("yyyy/MM/dd HH:mm:ss");
 
-  sh.getRange(dstRow, 11).setValue(srcRow);
-  if (url) sh.getRange(dstRow, 15).setValue(url);
+  sh.getRange(dstRow, 11).setValue(srcRow);       // K열: 원본 A시트 행번호
+  if (url) sh.getRange(dstRow, 15).setValue(url); // O열: 개인시트 URL
 
   const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`;
-  sh.getRange(dstRow, 8).setFormula(imp('M'));
-  sh.getRange(dstRow, 9).setFormula(imp('O'));
-  sh.getRange(dstRow, 10).setFormula(imp('Q'));
+  sh.getRange(dstRow, 8).setFormula(imp('M'));  // H열
+  sh.getRange(dstRow, 9).setFormula(imp('O'));  // I열
+  sh.getRange(dstRow, 10).setFormula(imp('Q')); // J열
 
-  // 12열에 서명하기 텍스트
-  const execUrl = lookupExecUrlByScriptId(ScriptApp.getScriptId());
-  sh.getRange(dstRow, 12).setFormula(`=HYPERLINK("${execUrl}?role=${role}&row=${srcRow}", "서명하기")`);
+  sh.getRange(dstRow, 12).insertCheckboxes();   // L열: 체크박스
 
-  // 체크박스 제거 (필요 없으면 주석 처리 or 제거)
-  // sh.getRange(dstRow, 12).insertCheckboxes();
+  // 📱 모바일 서명 링크(M열=13열) 생성
+  const mapSheet = SpreadsheetApp.getActive().getSheetByName(CFG.MAP_ID);
+  const mapRows = mapSheet.getRange(2, 1, mapSheet.getLastRow() - 1, 5).getValues(); // A:E
+
+  let hubUrl = '';
+  for (let row of mapRows) {
+    if (row[0].toString().trim() === docName) { // A열: 문서명
+      hubUrl = row[4].toString().trim();        // E열: WebApp URL
+      break;
+    }
+  }
+
+  if (hubUrl) {
+    const mobileUrl = `${hubUrl}?role=${role}&row=${srcRow}`;
+    sh.getRange(dstRow, 13).setFormula(`=HYPERLINK("${mobileUrl}", "📱 모바일 서명하기")`);
+  }
 }
+
 
 
 /********* 캘린더 등록 *********/ // << 캘린더 등록 함수
