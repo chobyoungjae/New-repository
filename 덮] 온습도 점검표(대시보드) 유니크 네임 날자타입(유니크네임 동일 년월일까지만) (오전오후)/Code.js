@@ -197,7 +197,7 @@ function pushToBoard(boardId, role, srcRow, url) { // << 보드에 항목 추가
   // const end      = data().getRange(srcRow, 8).getValue();
   //const reason   = data().getRange(srcRow,10).getValue();
   sh.getRange(dstRow, 1, 1, 3)
-    .setValues([[ts, docName, name, type, start, end, reason]]);
+    .setValues([[ts, docName, name]]);
   sh.getRange(dstRow, 1).setNumberFormat("yyyy-MM-dd HH:mm:ss");
   sh.getRange(dstRow, 11).setValue(srcRow);
   if (url) sh.getRange(dstRow, 15).setValue(url);

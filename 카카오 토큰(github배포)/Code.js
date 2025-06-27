@@ -22,8 +22,7 @@ function refreshTokensAndUpdateFriends() {
   // 3) 갱신 실패 사용자 알림 (메일·시트 등)
   notifyTokenRefreshFailures();
 
-  // 4) TTL 칼럼 빈칸 정리 (추가 API 호출 없이 ‘-’로 표시)
-  updateRefreshTokenTTL();
+
 }
 
 // === 로그인 콜백 (POST) ===
@@ -122,27 +121,19 @@ function refreshAllTokens() {
     if (json.access_token)  sh.getRange(r, 2).setValue(json.access_token);
     if (json.refresh_token) sh.getRange(r, 3).setValue(json.refresh_token);
 
-    // 남은 TTL(초)을 일 단위로 변환 후 D열 저장
-    if (json.refresh_token_expires_in !== undefined) {
+    // 남은 TTL(초)을 일 단위로 변환 후 D열 저장 (보완됨)
+    if ('refresh_token_expires_in' in json) {
       const days = Math.ceil(json.refresh_token_expires_in / 86400);
       sh.getRange(r, 4).setValue(days + '일');
+    } else {
+      const current = sh.getRange(r, 4).getValue();
+      if (!current) sh.getRange(r, 4).setValue('-');
     }
 
     // 상태·타임스탬프 기록
     sh.getRange(r, 6).setValue('갱신완료');
     sh.getRange(r, 7).setValue(Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm:ss'));
   });
-}
-
-// === TTL 칼럼 보정 (빈칸만 "-") ===
-function updateRefreshTokenTTL() {
-  const sh   = SpreadsheetApp.getActive().getSheetByName('토큰갱신');
-  const last = sh.getLastRow();
-  if (last < 2) return;
-
-  for (let r = 2; r <= last; r++) {
-    if (!sh.getRange(r, 4).getValue()) sh.getRange(r, 4).setValue('-');
-  }
 }
 
 // === GET 요청 대응 (단순 안내) ===
