@@ -200,7 +200,7 @@ function pushToBoard(boardId, role, srcRow, url) {
   sh.getRange(dstRow, 9).setFormula(imp('O'));  // I열
   sh.getRange(dstRow, 10).setFormula(imp('Q')); // J열
 
-  sh.getRange(dstRow, 12).insertCheckboxes();   // L열: 체크박스
+  // sh.getRange(dstRow, 12).insertCheckboxes();   // L열: 체크박스
 
   // 📱 모바일 서명 링크(M열=13열) 생성
   const mapSheet = SpreadsheetApp.getActive().getSheetByName(CFG.MAP_ID);
@@ -216,7 +216,10 @@ function pushToBoard(boardId, role, srcRow, url) {
 
   if (hubUrl) {
     const mobileUrl = `${hubUrl}?role=${role}&row=${srcRow}`;
-    sh.getRange(dstRow, 13).setFormula(`=HYPERLINK("${mobileUrl}", "📱 모바일 서명하기")`);
+    const htmlLink = `<a href="${mobileUrl}" target="_blank">📱 서명하기</a>`;
+    sh.getRange(dstRow, 13).setFormula(`=HYPERLINK("${mobileUrl}", "📱 서명하기")`);
+
+
   }
 }
 
@@ -291,7 +294,15 @@ function exportPdfAndNotify(row) { // << PDF 생성 후 폴더에 저장
 
     const ts        = data().getRange(row,1).getValue(); // << 타임스탬프
     const formatted = Utilities.formatDate(new Date(ts), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH:mm:ss'); // << 파일명 포맷
-    blob.setName(`휴가신청서_${formatted}_${owner}.pdf`); // << Blob 이름 설정
+
+    const reason = data().getRange(row, 4).getDisplayValue().trim();    // C열: 휴가 사유 (공가, 연차 등)
+    const start  = data().getRange(row, 7).getDisplayValue().trim();    // G열: 시작일
+    const end    = data().getRange(row, 8).getDisplayValue().trim();    // H열: 종료일
+
+    const fileName = `휴가신청서_${formatted}_${reason}_${start}~${end}.pdf`;
+
+
+    blob.setName(fileName) ; // <--이름설정
     DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
   } finally {
     lock.releaseLock(); // << 락 해제
