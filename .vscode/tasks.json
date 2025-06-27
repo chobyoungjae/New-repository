@@ -39,11 +39,7 @@
     },
     {
       "label": "🔥 All-In-One Deploy",
-      "dependsOn": [
-        "Git Add",
-        "Git Commit",
-        "Git Push"
-      ],
+      "dependsOn": ["Git Add", "Git Commit", "Git Push"],
       "group": "build"
     }
   ]

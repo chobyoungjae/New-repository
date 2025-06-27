@@ -21,19 +21,18 @@ function refreshTokensAndUpdateFriends() {
 
   // 3) 갱신 실패 사용자 알림 (메일·시트 등)
   notifyTokenRefreshFailures();
-
-
 }
 
 // === 로그인 콜백 (POST) ===
 function doPost(e) {
   // x‑www‑form‑urlencoded 또는 JSON 모두 처리
-  const p = (e.parameter && Object.keys(e.parameter).length)
-    ? e.parameter
-    : JSON.parse(e.postData.contents || '{}');
+  const p =
+    e.parameter && Object.keys(e.parameter).length
+      ? e.parameter
+      : JSON.parse(e.postData.contents || '{}');
 
-  const name         = p.state;         // 로그인 페이지에서 넘긴 사용자 이름
-  const accessToken  = p.access_token;  // 카카오에서 받은 Access Token
+  const name = p.state; // 로그인 페이지에서 넘긴 사용자 이름
+  const accessToken = p.access_token; // 카카오에서 받은 Access Token
   const refreshToken = p.refresh_token; // 카카오에서 받은 Refresh Token
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -44,12 +43,18 @@ function doPost(e) {
   const hdr = sh.getRange('A1:C1').getValues()[0];
   if (hdr[0] !== 'Name' || hdr[1] !== 'Access Token' || hdr[2] !== 'Refresh Token') {
     sh.clear();
-    sh.getRange('A1:C1').setValues([['Name','Access Token','Refresh Token']]);
+    sh.getRange('A1:C1').setValues([['Name', 'Access Token', 'Refresh Token']]);
   }
 
   // 사용자 행 삽입 또는 업데이트
   const lastRow = sh.getLastRow();
-  const names   = lastRow > 1 ? sh.getRange(2, 1, lastRow - 1, 1).getValues().flat() : [];
+  const names =
+    lastRow > 1
+      ? sh
+          .getRange(2, 1, lastRow - 1, 1)
+          .getValues()
+          .flat()
+      : [];
   let row;
   const idx = names.indexOf(name);
   if (idx >= 0) {
@@ -69,7 +74,7 @@ function doPost(e) {
   try {
     UrlFetchApp.fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: 'Bearer ' + accessToken },
-      muteHttpExceptions: true
+      muteHttpExceptions: true,
     });
   } catch (_) {}
 
@@ -82,14 +87,14 @@ function refreshAllTokens() {
   if (!sh) throw new Error("'토큰갱신' 시트를 찾을 수 없습니다");
 
   const rows = sh.getLastRow() - 1;
-  if (rows < 1) return;               // 사용자 없음
+  if (rows < 1) return; // 사용자 없음
 
   const data = sh.getRange(2, 1, rows, 3).getValues(); // [Name, Access, Refresh]
-  const tz   = Session.getScriptTimeZone();
+  const tz = Session.getScriptTimeZone();
 
   data.forEach((row, i) => {
     const refresh = row[2];
-    const r = i + 2;                 // 실제 시트 행 번호
+    const r = i + 2; // 실제 시트 행 번호
 
     // Refresh 토큰이 없으면 스킵
     if (!refresh) {
@@ -99,17 +104,19 @@ function refreshAllTokens() {
 
     // 토큰 갱신 요청
     const resp = UrlFetchApp.fetch('https://kauth.kakao.com/oauth/token', {
-      method : 'post',
+      method: 'post',
       payload: {
-        grant_type:    'refresh_token',
-        client_id:     REST_API_KEY,
-        refresh_token: refresh
+        grant_type: 'refresh_token',
+        client_id: REST_API_KEY,
+        refresh_token: refresh,
       },
-      muteHttpExceptions: true
+      muteHttpExceptions: true,
     });
 
     let json = {};
-    try { json = JSON.parse(resp.getContentText()); } catch(_) {}
+    try {
+      json = JSON.parse(resp.getContentText());
+    } catch (_) {}
 
     // ── 실패 처리 ─────────────────────────────────
     if (resp.getResponseCode() !== 200 || json.error) {
@@ -118,7 +125,7 @@ function refreshAllTokens() {
     }
 
     // ── 성공 시: Access / Refresh 토큰 저장 ─────────
-    if (json.access_token)  sh.getRange(r, 2).setValue(json.access_token);
+    if (json.access_token) sh.getRange(r, 2).setValue(json.access_token);
     if (json.refresh_token) sh.getRange(r, 3).setValue(json.refresh_token);
 
     // 남은 TTL(초)을 일 단위로 변환 후 D열 저장 (보완됨)

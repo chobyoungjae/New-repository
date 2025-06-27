@@ -10,7 +10,7 @@ function showConfirmationAndUpdate() {
     try {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheet = ss.getActiveSheet();
-      const calendarId = sheet.getRange("A1").getValue();
+      const calendarId = sheet.getRange('A1').getValue();
       const calendar = CalendarApp.getCalendarById(calendarId);
 
       if (!calendar) {
@@ -35,10 +35,14 @@ function showConfirmationAndUpdate() {
             if (event) {
               const startTime = event.getStartTime();
               let endTime = event.getEndTime();
-              const description = (event.getDescription() || "").trim(); // null-safe 및 트림 처리
+              const description = (event.getDescription() || '').trim(); // null-safe 및 트림 처리
 
               // 하루종일 이벤트의 종료 시간 보정
-              if (endTime.getHours() === 0 && endTime.getMinutes() === 0 && endTime.getSeconds() === 0) {
+              if (
+                endTime.getHours() === 0 &&
+                endTime.getMinutes() === 0 &&
+                endTime.getSeconds() === 0
+              ) {
                 endTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
               }
 
@@ -48,7 +52,7 @@ function showConfirmationAndUpdate() {
               let currentStartTime = sheet.getRange(row, 2).getValue();
               let currentEndTime = sheet.getRange(row, 3).getValue();
               const currentColor = sheet.getRange(row, 10).getValue();
-              const currentDescription = (sheet.getRange(row, 11).getValue() || "").trim(); // null-safe 및 트림 처리
+              const currentDescription = (sheet.getRange(row, 11).getValue() || '').trim(); // null-safe 및 트림 처리
 
               if (!(currentStartTime instanceof Date)) {
                 currentStartTime = new Date(currentStartTime);
@@ -62,7 +66,12 @@ function showConfirmationAndUpdate() {
               const isColorChanged = currentColor !== color;
               const isDescriptionChanged = currentDescription !== description;
 
-              if (isStartTimeChanged || isEndTimeChanged || isColorChanged || isDescriptionChanged) {
+              if (
+                isStartTimeChanged ||
+                isEndTimeChanged ||
+                isColorChanged ||
+                isDescriptionChanged
+              ) {
                 if (isStartTimeChanged) {
                   sheet.getRange(row, 2).setValue(startTime);
                 }

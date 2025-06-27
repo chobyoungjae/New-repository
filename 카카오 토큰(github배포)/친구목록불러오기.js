@@ -4,18 +4,18 @@
  * @param {string} docId - '정기 트리거 상태' 시트 B열의 문서 ID
  */
 function logRegularTriggerMapped(docId) {
-  var dashboard = SpreadsheetApp.openById("1YMH0u-NRghspwapeczB-siQPs022f3H2EFVp7tPX31s");
-  var sheet     = dashboard.getSheetByName("정기 트리거 상태");
-  var data      = sheet.getDataRange().getValues();
-  var now       = new Date();
+  var dashboard = SpreadsheetApp.openById('1YMH0u-NRghspwapeczB-siQPs022f3H2EFVp7tPX31s');
+  var sheet = dashboard.getSheetByName('정기 트리거 상태');
+  var data = sheet.getDataRange().getValues();
+  var now = new Date();
 
   // B열 문서 ID가 docId와 일치하고, E열(status)가 비어있는 첫 행에만 기록
   for (var i = 1; i < data.length; i++) {
-    var rowDocId = data[i][1];  // B열: 문서 ID
-    var status   = data[i][4];  // E열: 상태
+    var rowDocId = data[i][1]; // B열: 문서 ID
+    var status = data[i][4]; // E열: 상태
     if (rowDocId === docId && !status) {
-      sheet.getRange(i + 1, 5).setValue("✅ 실행됨"); // E열: 작동유무
-      sheet.getRange(i + 1, 6).setValue(now);         // F열: 실행 시간
+      sheet.getRange(i + 1, 5).setValue('✅ 실행됨'); // E열: 작동유무
+      sheet.getRange(i + 1, 6).setValue(now); // F열: 실행 시간
       return;
     }
   }
@@ -48,7 +48,7 @@ function getKakaoFriendsToSheet() {
   const options = {
     method: 'get',
     headers: { Authorization: 'Bearer ' + token },
-    muteHttpExceptions: true
+    muteHttpExceptions: true,
   };
   const resp = UrlFetchApp.fetch(url, options);
   if (resp.getResponseCode() === 401) {
@@ -70,14 +70,7 @@ function getKakaoFriendsToSheet() {
 
   // 데이터 입력
   if (elements.length) {
-    const values = elements.map(f => [
-      f.profile_nickname,
-      f.uuid,
-      f.allowed_msg,
-      '',
-      '',
-      ts
-    ]);
+    const values = elements.map(f => [f.profile_nickname, f.uuid, f.allowed_msg, '', '', ts]);
     friendSheet.getRange(4, 1, values.length, 6).setValues(values);
   } else {
     friendSheet.getRange('A4:F4').setValues([['⚠️ 친구 없음', '', '', '', '', ts]]);

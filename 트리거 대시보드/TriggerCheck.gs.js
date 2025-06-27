@@ -11,23 +11,22 @@
  */
 function getKakaoToken() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("UUID");
-  return sheet.getRange("F1").getValue();
+  var sheet = ss.getSheetByName('UUID');
+  return sheet.getRange('F1').getValue();
 }
 
 /**
  * 2) 기본 텍스트 메시지 전송 (필요시)
  */
 function sendKakaoText(message) {
-  var url = "https://kapi.kakao.com/v2/api/talk/memo/default/send";
+  var url = 'https://kapi.kakao.com/v2/api/talk/memo/default/send';
   var token = getKakaoToken();
   var payload =
-    "template_object=" +
-    encodeURIComponent(JSON.stringify({ object_type: "text", text: message }));
+    'template_object=' + encodeURIComponent(JSON.stringify({ object_type: 'text', text: message }));
   UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/x-www-form-urlencoded",
-    headers: { Authorization: "Bearer " + token },
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    headers: { Authorization: 'Bearer ' + token },
     payload: payload,
     muteHttpExceptions: true,
   });
@@ -37,13 +36,13 @@ function sendKakaoText(message) {
  * 3) 버튼이 포함된 피드 메시지 전송
  */
 function sendKakaoFeedWithButton(title, buttonTitle, buttonUrl) {
-  var url = "https://kapi.kakao.com/v2/api/talk/memo/default/send";
+  var url = 'https://kapi.kakao.com/v2/api/talk/memo/default/send';
   var token = getKakaoToken();
   var template = {
-    object_type: "feed",
+    object_type: 'feed',
     content: {
       title: title,
-      description: "",
+      description: '',
       link: { web_url: buttonUrl, mobile_web_url: buttonUrl },
     },
     buttons: [
@@ -53,12 +52,11 @@ function sendKakaoFeedWithButton(title, buttonTitle, buttonUrl) {
       },
     ],
   };
-  var payload =
-    "template_object=" + encodeURIComponent(JSON.stringify(template));
+  var payload = 'template_object=' + encodeURIComponent(JSON.stringify(template));
   UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/x-www-form-urlencoded",
-    headers: { Authorization: "Bearer " + token },
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    headers: { Authorization: 'Bearer ' + token },
     payload: payload,
     muteHttpExceptions: true,
   });
@@ -69,23 +67,13 @@ function sendKakaoFeedWithButton(title, buttonTitle, buttonUrl) {
  */
 function getTriggersForSheetList() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var listSheet = ss.getSheetByName("문서목록");
-  var statusSheet =
-    ss.getSheetByName("정기 트리거 상태") || ss.insertSheet("정기 트리거 상태");
+  var listSheet = ss.getSheetByName('문서목록');
+  var statusSheet = ss.getSheetByName('정기 트리거 상태') || ss.insertSheet('정기 트리거 상태');
 
   // 헤더 설정
   statusSheet
     .getRange(1, 1, 1, 6)
-    .setValues([
-      [
-        "문서 설명",
-        "문서 ID",
-        "스크립트 ID",
-        "예약시간",
-        "상태",
-        "최종 실행시간",
-      ],
-    ]);
+    .setValues([['문서 설명', '문서 ID', '스크립트 ID', '예약시간', '상태', '최종 실행시간']]);
 
   // 기존 E,F 초기화
   var lastRow = statusSheet.getLastRow();
@@ -114,7 +102,7 @@ function getTriggersForSheetList() {
  */
 function pollTriggers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("정기 트리거 상태");
+  var sheet = ss.getSheetByName('정기 트리거 상태');
   if (!sheet) return;
   var now = new Date();
   var rows = sheet.getDataRange().getValues();
@@ -127,44 +115,34 @@ function pollTriggers() {
     if (raw instanceof Date) {
       h = raw.getHours();
       m = raw.getMinutes();
-    } else if (typeof raw === "string" && raw.indexOf(":") > -1) {
-      var p = raw.split(":");
+    } else if (typeof raw === 'string' && raw.indexOf(':') > -1) {
+      var p = raw.split(':');
       h = parseInt(p[0], 10);
       m = parseInt(p[1], 10);
     } else continue;
 
-    var scheduled = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      h,
-      m
-    );
+    var scheduled = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
     if (scheduled <= now) {
       // F열 기록
       sheet.getRange(i + 1, 6).setValue(now);
-      if (
-        scheduled.getHours() === now.getHours() &&
-        scheduled.getMinutes() === now.getMinutes()
-      ) {
+      if (scheduled.getHours() === now.getHours() && scheduled.getMinutes() === now.getMinutes()) {
         // 제때 실행
-        sheet.getRange(i + 1, 5).setValue("✅ 실행됨");
+        sheet.getRange(i + 1, 5).setValue('✅ 실행됨');
       } else {
         // 지연 실행
-        sheet.getRange(i + 1, 5).setValue("❌ 미작동");
+        sheet.getRange(i + 1, 5).setValue('❌ 미작동');
         var sheetName = rows[i][0];
         var fnName = rows[i][2];
-        var titleText = sheetName + "의 " + fnName + " 트리거 미작동 알림";
-        var buttonUrl =
-          "https://kakao-test-ebon.vercel.app/go.html?doc=대시보드";
+        var titleText = sheetName + '의 ' + fnName + ' 트리거 미작동 알림';
+        var buttonUrl = 'https://kakao-test-ebon.vercel.app/go.html?doc=대시보드';
 
         // ——— 카카오톡 버튼형 알림 ———
-        sendKakaoFeedWithButton(titleText, "내용 확인", buttonUrl);
+        sendKakaoFeedWithButton(titleText, '내용 확인', buttonUrl);
 
         // ——— 이메일 알림 ———
-        var recipient = "oosdream3@gmail.com";
+        var recipient = 'oosdream3@gmail.com';
         var subject = titleText;
-        var body = "내용 확인: " + buttonUrl;
+        var body = '내용 확인: ' + buttonUrl;
         MailApp.sendEmail(recipient, subject, body);
       }
       break;

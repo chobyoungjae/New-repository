@@ -3,7 +3,11 @@ function sendKakaoMessages() {
 
   const accessToken = sheet.getRange('F1').getValue();
   const refreshToken = sheet.getRange('G1').getValue(); // 필요시 자동 갱신 추가 가능
-  const uuids = sheet.getRange('B4:B' + sheet.getLastRow()).getValues().flat().filter(Boolean);
+  const uuids = sheet
+    .getRange('B4:B' + sheet.getLastRow())
+    .getValues()
+    .flat()
+    .filter(Boolean);
 
   const today = new Date();
   const day = today.getDay(); // 0: 일, 1: 월 ... 6: 토
@@ -30,19 +34,19 @@ function sendMessageToKakaoFriend(token, uuid, message) {
       text: message,
       link: {
         web_url: 'https://example.com',
-        mobile_web_url: 'https://example.com'
+        mobile_web_url: 'https://example.com',
       },
-      button_title: '확인'
-    })
+      button_title: '확인',
+    }),
   };
 
   const options = {
     method: 'post',
     payload: payload,
     headers: {
-      Authorization: 'Bearer ' + token
+      Authorization: 'Bearer ' + token,
     },
-    muteHttpExceptions: true
+    muteHttpExceptions: true,
   };
 
   try {

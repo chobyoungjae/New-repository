@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body {
         margin: 0;
@@ -23,8 +23,12 @@
     </style>
   </head>
   <body>
-    <h3><?= role.toUpperCase() ?> 서명 (행 <?= row ?>)</h3>
-    <canvas id="sig"></canvas><br>
+    <h3>
+      <?= role.toUpperCase() ?>
+      서명 (행
+      <?= row ?>)
+    </h3>
+    <canvas id="sig"></canvas><br />
     <button onclick="saveSignature()">서명 완료</button>
 
     <script>
