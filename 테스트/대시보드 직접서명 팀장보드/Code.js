@@ -56,3 +56,4 @@ function onEditInstallable(e) {
 function __grantScopes() {
   return true;
 }
+// 수정했지롱
