@@ -1,7 +1,6 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
-
   ui.createMenu('생산')
     .addItem('스프레드시트 → 캘린더', 'onClickShape')
     .addItem('캘린더 → 스프레드시트', 'showConfirmationAndUpdate')
@@ -57,7 +56,8 @@ function updateProductionCalendar() {
       }
 
       // 제목에서 날짜를 제외하고 텍스트만 포함
-      var title = text1 + ' ' + text4 + ' ' + text2 + ' ' + text3 + '_' + amount + 'g [' + quantity + 'ea]';
+      var title =
+        text1 + ' ' + text4 + ' ' + text2 + ' ' + text3 + '_' + amount + 'g [' + quantity + 'ea]';
 
       try {
         var event;

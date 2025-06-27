@@ -1,17 +1,17 @@
 // 🎨 색상 ID → 한글 이름
 function getColorNameById(colorId) {
   const colorMap = {
-    '1': '파랑',
-    '2': '초록',
-    '3': '보라',
-    '4': '핑크',
-    '5': '노랑',
-    '6': '청록',
-    '7': '모르는색',
-    '8': '회색',
-    '9': '진한초록',
-    '10': '진한빨강',
-    '11': '빨강',
+    1: '파랑',
+    2: '초록',
+    3: '보라',
+    4: '핑크',
+    5: '노랑',
+    6: '청록',
+    7: '모르는색',
+    8: '회색',
+    9: '진한초록',
+    10: '진한빨강',
+    11: '빨강',
   };
   return colorMap[String(colorId).toLowerCase()] || colorId;
 }
@@ -31,16 +31,19 @@ function showConfirmationAndUpdate_buy() {
 
 // ✅ 공통 로직 함수 (트리거도 여기로 연결 가능, UI 없음)
 function updateCalendarToSheet() {
-  logRegularTriggerMapped("updateCalendarToSheet");
+  logRegularTriggerMapped('updateCalendarToSheet');
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getActiveSheet();
-    const calendarId = sheet.getRange("A1").getValue();
+    const calendarId = sheet.getRange('A1').getValue();
     const calendar = CalendarApp.getCalendarById(calendarId);
     if (!calendar) return;
 
     const lastRow = sheet.getLastRow();
-    const eventIds = sheet.getRange(3, 10, lastRow - 2).getValues().map(row => row[0]);
+    const eventIds = sheet
+      .getRange(3, 10, lastRow - 2)
+      .getValues()
+      .map(row => row[0]);
     const calendarEvents = calendar.getEvents(new Date(2000, 0, 1), new Date(2100, 0, 1));
     const calendarEventIds = calendarEvents.map(e => e.getId());
 
@@ -57,11 +60,7 @@ function updateCalendarToSheet() {
 
         const startTime = event.getStartTime();
         let endTime = event.getEndTime();
-        if (
-          endTime.getHours() === 0 &&
-          endTime.getMinutes() === 0 &&
-          endTime.getSeconds() === 0
-        ) {
+        if (endTime.getHours() === 0 && endTime.getMinutes() === 0 && endTime.getSeconds() === 0) {
           endTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
         }
 

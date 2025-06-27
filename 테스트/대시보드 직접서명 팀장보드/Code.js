@@ -1,4 +1,4 @@
-const ROLE = "leader"; // 이 보드는 leader 역할용
+const ROLE = 'leader'; // 이 보드는 leader 역할용
 
 /**
  * 설치형 onEdit 트리거 함수
@@ -9,9 +9,9 @@ function onEditInstallable(e) {
   const sheet = range.getSheet();
 
   // — ① 반드시 팀장보드 시트 이름이면 동작
-  if (sheet.getName() !== "시트1") return;
+  if (sheet.getName() !== '시트1') return;
   // — ② 12열 + TRUE 체크만 감지
-  if (range.getColumn() !== 12 || value !== "TRUE") return;
+  if (range.getColumn() !== 12 || value !== 'TRUE') return;
 
   const row = range.getRow();
   const ui = SpreadsheetApp.getUi();
@@ -19,14 +19,12 @@ function onEditInstallable(e) {
   // — ③ 문서ID 시트에서 이 행의 URL 꺼내기
   const docName = sheet.getRange(row, 2).getDisplayValue().trim();
   if (!docName) {
-    ui.alert("B열에 문서명이 없습니다.");
+    ui.alert('B열에 문서명이 없습니다.');
     return;
   }
-  const lookupSh = SpreadsheetApp.getActive().getSheetByName("문서ID");
-  const rows = lookupSh
-    .getRange(2, 1, lookupSh.getLastRow() - 1, 5)
-    .getValues();
-  let hubUrl = "";
+  const lookupSh = SpreadsheetApp.getActive().getSheetByName('문서ID');
+  const rows = lookupSh.getRange(2, 1, lookupSh.getLastRow() - 1, 5).getValues();
+  let hubUrl = '';
   for (let r of rows) {
     if (r[0] === docName) {
       hubUrl = String(r[4]).trim();
@@ -41,7 +39,7 @@ function onEditInstallable(e) {
   // — ④ 원본 A시트 행 번호(K열=11) 가져오기
   const srcRow = sheet.getRange(row, 11).getValue();
   if (!srcRow) {
-    ui.alert("K열에 원본 행 번호가 없습니다.");
+    ui.alert('K열에 원본 행 번호가 없습니다.');
     return;
   }
 
@@ -52,7 +50,7 @@ function onEditInstallable(e) {
   )
     .setWidth(10)
     .setHeight(10);
-  ui.showModalDialog(html, "서명 페이지로 이동 중...");
+  ui.showModalDialog(html, '서명 페이지로 이동 중...');
 }
 
 /**
