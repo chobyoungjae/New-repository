@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CLASP Push",
+      "type": "shell",
+      "command": "clasp push",
+      "group": "build"
+    },
+    {
+      "label": "Git Add",
+      "type": "shell",
+      "command": "git add .",
+      "group": "build"
+    },
+    {
+      "label": "Git Commit",
+      "type": "shell",
+      "command": "git commit -m \"💬 작업 내용 메모\"",
+      "group": "build"
+    },
+    {
+      "label": "Git Push",
+      "type": "shell",
+      "command": "git push origin main",
+      "group": "build"
+    },
+    {
+      "label": "CLASP Pull",
+      "type": "shell",
+      "command": "clasp pull",
+      "group": "build"
+    },
+    {
+      "label": "CLASP Open",
+      "type": "shell",
+      "command": "clasp open",
+      "group": "build"
+    },
+    {
+      "label": "🔥 All-In-One Deploy",
+      "dependsOn": ["Git Add", "Git Commit", "Git Push"],
+      "group": "build"
+    }
+  ]
+}
