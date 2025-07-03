@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>카카오 친구 목록 테스트</title>
+  </head>
+  <body>
+    <h1>📋 카카오 친구 목록 불러오기</h1>
+    <button id="getTokenBtn">1️⃣ 액세스 토큰 발급</button>
+    <button id="getFriendsBtn" disabled>2️⃣ 친구 목록 조회</button>
+    <pre id="output"></pre>
+
+    <script>
+      const client_id = 'b753d319ccd4300a4c957d7d4c6c9b96';
+      const redirect_uri = 'https://kakao-test-ebon.vercel.app/kakao_friends_test.html';
+
+      let access_token = '';
+
+      document.getElementById('getTokenBtn').onclick = () => {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+
+        if (!code) {
+          window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=code&scope=talk_message,friends`;
+          return;
+        }
+
+        fetch('https://kauth.kakao.com/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id,
+            redirect_uri,
+            code,
+          }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            access_token = data.access_token;
+            document.getElementById('output').textContent =
+              '✅ 액세스 토큰 발급 완료\n' + JSON.stringify(data, null, 2);
+            document.getElementById('getFriendsBtn').disabled = false;
+          })
+          .catch(err => {
+            document.getElementById('output').textContent = '❌ 토큰 요청 실패\n' + err;
+          });
+      };
+
+      document.getElementById('getFriendsBtn').onclick = () => {
+        if (!access_token) {
+          alert('먼저 토큰을 발급받아야 합니다.');
+          return;
+        }
+
+        fetch('https://kapi.kakao.com/v1/api/talk/friends', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+          },
+        })
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById('output').textContent =
+              '👥 친구 목록:\n' + JSON.stringify(data, null, 2);
+          })
+          .catch(err => {
+            document.getElementById('output').textContent = '❌ 친구 목록 요청 실패\n' + err;
+          });
+      };
+    </script>
+  </body>
+</html>
