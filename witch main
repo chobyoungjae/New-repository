@@ -1,0 +1,34 @@
+[33m6952d5b[m[33m ([m[1;36mHEAD[m[33m)[m HEAD@{0}: checkout: moving from cbf26492052252234e9dd118077d0569d0e02bd0 to HEAD@{16}
+[33mcbf2649[m HEAD@{1}: checkout: moving from main to HEAD@{17}
+[33m8bbb6aa[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{2}: commit: 25.05.13_ [전체저장] 발주시트 트리거로 작동시 오류 해결
+[33m388848e[m HEAD@{3}: checkout: moving from 388848e17338bb115a8ac31e4246cf6d806dd815 to main
+[33m388848e[m HEAD@{4}: checkout: moving from c9e33951a6b222c4933826030d3a74516fd17b5c to HEAD@{13}
+[33mc9e3395[m HEAD@{5}: checkout: moving from 7a17c9d989af870ab28c7e6def8a6e11747db8b2 to HEAD@{14}
+[33m7a17c9d[m HEAD@{6}: checkout: moving from cbf26492052252234e9dd118077d0569d0e02bd0 to HEAD@{15}
+[33mcbf2649[m HEAD@{7}: checkout: moving from 482cc3ebdce437ad9f8f4bbedd549dfd24acb591 to HEAD@{11}
+[33m482cc3e[m HEAD@{8}: commit: 휴가신청서 이경진 클릭시 함수작동 변경
+[33m388848e[m HEAD@{9}: checkout: moving from main to HEAD@{4}
+[33m388848e[m HEAD@{10}: checkout: moving from c9e33951a6b222c4933826030d3a74516fd17b5c to main
+[33mc9e3395[m HEAD@{11}: checkout: moving from cbf26492052252234e9dd118077d0569d0e02bd0 to HEAD@{8}
+[33mcbf2649[m HEAD@{12}: checkout: moving from main to HEAD@{6}
+[33m388848e[m HEAD@{13}: checkout: moving from main to main
+[33m388848e[m HEAD@{14}: reset: moving to HEAD~1
+[33m6952d5b[m[33m ([m[1;36mHEAD[m[33m)[m HEAD@{15}: checkout: moving from 388848e17338bb115a8ac31e4246cf6d806dd815 to main
+[33m388848e[m HEAD@{16}: checkout: moving from main to HEAD~1
+[33m6952d5b[m[33m ([m[1;36mHEAD[m[33m)[m HEAD@{17}: commit: 최신 업데이트 25.05.09일 09:57분
+[33m388848e[m HEAD@{18}: commit: 📦 ERP 재고 내려받기 오류 시 카톡, 메일 전송 업데이트
+[33mcbf2649[m HEAD@{19}: commit: Backup 스크립트 토큰발급 메시지보내기 전체 변경
+[33mc9e3395[m HEAD@{20}: commit: 카톡 토큰발급, 갱신 및 깃허브 배포관리
+[33m8298716[m HEAD@{21}: commit: 토큰 자동 재발급(나,친구 트리거 설정) 함수 정리
+[33m7a17c9d[m HEAD@{22}: commit: ♻️ 휴가신청서 대시보드로 정보 전달 함수 추가
+[33m02c31f9[m HEAD@{23}: commit: 📁 발주시트(캘린더)_메인 스크립트 백업 완료
+[33me6bca4c[m HEAD@{24}: commit: 📁 발주시트(캘린더)_메인 스크립트 백업 완료
+[33m70fc774[m HEAD@{25}: commit: 📁 휴가신청서(응답) 스크립트 백업 완료
+[33meb2127b[m HEAD@{26}: commit: ✅ 원재료 발주(응답) 파일명 수정 후 백업 완료
+[33m4ffb13a[m HEAD@{27}: commit: 📦 원재료 발주(응답) 스크립트 백업 추가
+[33m4f8ee92[m HEAD@{28}: commit: 📦 ERP 재고 따오기 스크립트 백업 추가
+[33m4ccde3b[m HEAD@{29}: commit: 📂 트리거 대시보드 스크립트 백업 완료
+[33m5a975ab[m HEAD@{30}: commit: 📁 카카오 친구 목록 스크립트 폴더로 정리 완료
+[33mc2f34a5[m HEAD@{31}: Branch: renamed refs/heads/master to refs/heads/main
+[33mc2f34a5[m HEAD@{33}: commit: 🚀 민감 정보 없이 백업 새로 시작
+[33m126f38a[m HEAD@{34}: commit (initial): 🚀 민감 정보 없이 백업 새로 시작

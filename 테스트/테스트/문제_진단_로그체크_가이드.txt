@@ -1,0 +1,23 @@
+[문제 진단 로그체크 가이드]
+
+1. 프론트엔드(leader.js)에서 fetch 직전 값 확인
+- 위치: handleSave 함수, fetch 호출 바로 직전
+- 코드: console.log("서명 전송 데이터", { dataUrl, row, role });
+- 실행: 웹앱에서 서명 후 F12 → Console에서 값 확인
+
+2. Next.js API Route에서 req.body 값 확인
+- 위치: sign-webapp/pages/api/upload-signature.js, handler 함수 맨 앞
+- 코드: console.log("API Route req.body:", req.body);
+- 실행: 로컬은 터미널, Vercel은 대시보드 Logs에서 확인
+
+3. Apps Script doPost에서 받은 데이터 확인
+- 위치: Code.js, doPost 함수 맨 앞
+- 코드: Logger.log("[doPost] postData.contents: " + e.postData.contents);
+- 실행: Apps Script 실행 기록 → 로그 탭에서 확인
+
+4. saveSignature에서 값 확인
+- 위치: Code.js, saveSignature 함수 맨 앞
+- 코드: Logger.log("[saveSignature] row: " + row + ", role: " + role + ", dataUrl: " + (dataUrl ? dataUrl.substring(0, 30) : "null"));
+- 실행: Apps Script 실행 기록 → 로그 탭에서 확인
+
+각 단계별로 실제 값이 undefined/null이 아닌지 꼭 확인하세요! 
