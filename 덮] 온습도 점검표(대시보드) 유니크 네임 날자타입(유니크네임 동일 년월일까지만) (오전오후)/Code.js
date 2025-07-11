@@ -203,11 +203,11 @@ function pushToBoard(boardId, role, srcRow, url) {
   const ts = new Date();
   const docName = '온습도 점검표(대시보드)';
   const name = data().getRange(srcRow, 2).getValue();
-  // const type     = data().getRange(srcRow, 3).getValue();
+  const type     = data().getRange(srcRow, 18).getValue();
   // const start    = data().getRange(srcRow, 7).getValue();
   // const end      = data().getRange(srcRow, 8).getValue();
   //const reason   = data().getRange(srcRow,10).getValue();
-  sh.getRange(dstRow, 1, 1, 3).setValues([[ts, docName, name]]);
+  sh.getRange(dstRow, 1, 1, 4).setValues([[ts, docName, name, type]]);
   sh.getRange(dstRow, 1).setNumberFormat('yyyy-MM-dd HH:mm:ss');
   sh.getRange(dstRow, 11).setValue(srcRow);
   if (url) sh.getRange(dstRow, 15).setValue(url);
