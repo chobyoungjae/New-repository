@@ -1,3 +1,5 @@
+
+
 function logRangeAD16toD37Size() {
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName('문서');
@@ -90,22 +92,31 @@ function onFormSubmit(e) {
 
     // ▶ 이미지 삽입 (여기에 넣으세요)
     try {
-      const jId = extractId(data().getRange(row, 11).getValue());
+      const iId = extractId(data().getRange(row, 9).getValue());
+      if (iId) {
+        const iBlob = UrlFetchApp.fetch(`https://drive.google.com/thumbnail?sz=w400&id=${iId}`, {
+          headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        }).getBlob();
+        const iImg = s.insertImage(iBlob, 1, 14);
+        iImg.setWidth(480).setHeight(350);
+      }
+
+      const jId = extractId(data().getRange(row, 10).getValue());
       if (jId) {
         const jBlob = UrlFetchApp.fetch(`https://drive.google.com/thumbnail?sz=w400&id=${jId}`, {
           headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
         }).getBlob();
-        const jImg = s.insertImage(jBlob, 1, 16);
-        jImg.setWidth(400).setHeight(460);
+        const jImg = s.insertImage(jBlob, 4, 14);
+        jImg.setWidth(500).setHeight(350);
       }
 
-      const kId = extractId(data().getRange(row, 12).getValue());
+      const kId = extractId(data().getRange(row, 11).getValue());
       if (kId) {
         const kBlob = UrlFetchApp.fetch(`https://drive.google.com/thumbnail?sz=w400&id=${kId}`, {
           headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
         }).getBlob();
-        const kImg = s.insertImage(kBlob, 5, 16);
-        kImg.setWidth(400).setHeight(460);
+        const kImg = s.insertImage(kBlob, 1, 32);
+        kImg.setWidth(980).setHeight(395);
       }
     } catch (err) {
       Logger.log('이미지 삽입 오류: ' + err);
