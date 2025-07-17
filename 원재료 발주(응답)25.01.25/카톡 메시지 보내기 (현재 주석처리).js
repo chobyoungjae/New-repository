@@ -1,9 +1,8 @@
-/*
-
-
-//  트리거 대시보드용 백데이터 (문서 ID 기준 기록)
-
-// @param {string} docId - '정기 트리거 상태' 시트 B열의 문서 ID
+/**
+ * 트리거 대시보드용 백데이터 (문서 ID 기준 기록)
+ *
+ * @param {string} docId - '정기 트리거 상태' 시트 B열의 문서 ID
+ */
 function logRegularTriggerMapped(docId) {
   var dashboard = SpreadsheetApp.openById('1YMH0u-NRghspwapeczB-siQPs022f3H2EFVp7tPX31s');
   var sheet = dashboard.getSheetByName('정기 트리거 상태');
@@ -22,9 +21,9 @@ function logRegularTriggerMapped(docId) {
   }
 }
 
-
-// onEdit 이벤트 핸들러: 발주확인/발주완료 드롭다운 선택 시 카카오 메시지 전송
- 
+/**
+ * onEdit 이벤트 핸들러: 발주확인/발주완료 드롭다운 선택 시 카카오 메시지 전송
+ */
 function onEdit(e) {
   var range = e.range;
   var sheet = range.getSheet();
@@ -76,9 +75,9 @@ function onEdit(e) {
   }
 }
 
-
-// 이름 → UUID 매핑
-
+/**
+ * 이름 → UUID 매핑
+ */
 function getFriendMap(friendSheet) {
   var data = friendSheet.getDataRange().getValues();
   var map = {};
@@ -90,13 +89,13 @@ function getFriendMap(friendSheet) {
   return map;
 }
 
-//
-//  카카오 친구에게 메시지 전송
-//  @param {string} name - 수신자 이름
-//  @param {string} message - 보낼 메시지 본문
-//  @param {Object} friendMap - 이름→UUID 매핑 객체
-//  @param {string} [linkUrl] - 버튼 클릭 시 이동할 URL (옵션)
-//
+/**
+ * 카카오 친구에게 메시지 전송
+ * @param {string} name - 수신자 이름
+ * @param {string} message - 보낼 메시지 본문
+ * @param {Object} friendMap - 이름→UUID 매핑 객체
+ * @param {string} [linkUrl] - 버튼 클릭 시 이동할 URL (옵션)
+ */
 function sendKakaoTo(name, message, friendMap, linkUrl) {
   if (!friendMap || typeof friendMap !== 'object') {
     Logger.log('❌ friendMap 오류: %s', JSON.stringify(friendMap));
@@ -154,5 +153,3 @@ function logSheetNames() {
   var names = ss.getSheets().map(s => s.getName());
   Logger.log('시트 목록: ' + names.join(', '));
 }
-
-*/
