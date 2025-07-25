@@ -79,67 +79,103 @@ function onFormSubmit(e) {
     data().getRange(row, 15).setValue(uniqueName); // ▶ O열(15)에 uniqueName 저장
     return; // 이후 로직 스킵
   } else if (status === '작업 중') {
+    console.log(`[작업 중 시작] row=${row}`);
+    
     // O열에 기록된 uniqueName 우선, 없으면 가장 최근 생성된 시트로 폴백
     let sheetName = data().getRange(row, 15).getDisplayValue().trim(); // ▶ O열에서 uniqueName 읽기
-    if (!sheetName) {
-      // 비어 있으면
-      const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
-      const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
-      const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
-      const weight = `${weightVal}g`; // g 고정
-      const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
-      const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
-      const expiry = Utilities.formatDate(
-        new Date(expiryRaw),
-        Session.getScriptTimeZone(),
-        'yy.MM.dd'
-      );
-      const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(
-        /[/\\?%*:|"<>]/g,
-        '-'
-      ); // 기본 시트명 조합
+    console.log(`[작업 중] 기존 O열 값: "${sheetName}"`);
+    
+    // 항상 baseName을 생성하여 시트 존재 여부 확인
+    const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
+    const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
+    const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
+    const weight = `${weightVal}g`; // g 고정
+    const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
+    const expiryRaw = data().getRange(row, 8).getValue(); // H열: 유통기한 (Date 객체)
+    
+    console.log(`[작업 중] 데이터: line="${line}", product="${product}", weight="${weight}", lot="${lot}"`);
+    
+    const expiry = Utilities.formatDate(
+      new Date(expiryRaw),
+      Session.getScriptTimeZone(),
+      'yy.MM.dd'
+    );
+    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(
+      /[/\\?%*:|"<>]/g,
+      '-'
+    ); // 기본 시트명 조합
+    
+    console.log(`[작업 중] baseName="${baseName}"`);
 
+    // O열이 비어있거나 해당 시트명이 존재하지 않으면 fallback 실행
+    if (!sheetName || !ss.getSheetByName(sheetName)) {
+      console.log(`[작업 중] fallback 실행: sheetName="${sheetName}" 존재여부=${!!ss.getSheetByName(sheetName)}`);
+      
       const shLatest = getLatestSheet(baseName); // 최근 시트 객체
-      if (!shLatest) return; // 없다면 종료
+      if (!shLatest) {
+        console.log(`[작업 중] 시트를 찾을 수 없음: baseName=${baseName}, row=${row}`);
+        return; // 없다면 종료
+      }
       sheetName = shLatest.getName(); // 이름으로 갱신
-
-      data().getRange(row, 15).setValue(sheetName); // 💡 fallback 으로 찾은 시트 이름 O열에 기록
+      console.log(`[작업 중] 찾은 시트명: "${sheetName}"`);
+      
+      data().getRange(row, 15).setValue(sheetName); // 💡 fallback으로 찾은 시트 이름 O열에 기록
+      console.log(`[작업 중] O열 업데이트 완료: ${sheetName}, row=${row}`);
     }
+    
     const sh = ss.getSheetByName(sheetName); // ▶ 정확히 해당 시트만 조회
-    if (!sh) return; // 없으면 종료
+    if (!sh) {
+      console.log(`[작업 중] 시트가 존재하지 않음: ${sheetName}, row=${row}`);
+      return; // 없으면 종료
+    }
 
+    console.log(`[작업 중] 시트 찾음: "${sheetName}"`);
+    
     const mVals = sh.getRange('M10:M').getValues().flat(); // M10 이하 값
     const nextRow = 10 + mVals.filter(v => v !== '').length; // 다음 빈 M행 계산
+    console.log(`[작업 중] M열 다음 행: ${nextRow}`);
+    
     sh.getRange(`M${nextRow}`).setValue(data().getRange(row, 1).getValue()); // ▶ 타임스탬프 기록
+    console.log(`[작업 중] M${nextRow}에 타임스탬프 기록 완료`);
     return;
   } else if (status === '제품생산 완료') {
     // O열에 기록된 uniqueName 우선, 없으면 가장 최근 생성된 시트로 폴백
     let sheetName = data().getRange(row, 15).getDisplayValue().trim(); // ▶ O열에서 uniqueName 읽기
-    if (!sheetName) {
-      const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
-      const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
-      const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
-      const weight = `${weightVal}g`; // g 고정
-      const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
-      const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
-      const expiry = Utilities.formatDate(
-        new Date(expiryRaw),
-        Session.getScriptTimeZone(),
-        'yy.MM.dd'
-      );
-      const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(
-        /[/\\?%*:|"<>]/g,
-        '-'
-      ); // 기본 시트명 조합
+    
+    // 항상 baseName을 생성하여 시트 존재 여부 확인
+    const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
+    const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
+    const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
+    const weight = `${weightVal}g`; // g 고정
+    const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
+    const expiryRaw = data().getRange(row, 8).getValue(); // H열: 유통기한 (Date 객체)
+    const expiry = Utilities.formatDate(
+      new Date(expiryRaw),
+      Session.getScriptTimeZone(),
+      'yy.MM.dd'
+    );
+    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(
+      /[/\\?%*:|"<>]/g,
+      '-'
+    ); // 기본 시트명 조합
 
+    // O열이 비어있거나 해당 시트명이 존재하지 않으면 fallback 실행
+    if (!sheetName || !ss.getSheetByName(sheetName)) {
       const shLatest = getLatestSheet(baseName); // 최근 시트 객체
-      if (!shLatest) return;
+      if (!shLatest) {
+        console.log(`[제품생산 완료] 시트를 찾을 수 없음: baseName=${baseName}, row=${row}`);
+        return;
+      }
       sheetName = shLatest.getName();
-
-      data().getRange(row, 15).setValue(sheetName); // 💡 fallback 으로 찾은 시트 이름 O열에 기록
+      data().getRange(row, 15).setValue(sheetName); // 💡 fallback으로 찾은 시트 이름 O열에 기록
+      console.log(`[제품생산 완료] O열 업데이트: ${sheetName}, row=${row}`);
     }
+    
     const sh = ss.getSheetByName(sheetName); // ▶ 정확히 해당 시트만 조회
-    if (!sh) return;
+    if (!sh) {
+      console.log(`[제품생산 완료] 시트가 존재하지 않음: ${sheetName}, row=${row}`);
+      return;
+    }
 
     const mVals = sh.getRange('M10:M').getValues().flat(); // M10 이하 값
     const nextRow = 10 + mVals.filter(v => v !== '').length; // 다음 빈 M행 계산
@@ -255,30 +291,37 @@ function exportPdfAndNotify(row) {
 
   // ① O열(15)에 저장된 uniqueName 우선, 없으면 baseName으로 폴백하여 최신 시트 찾기
   let sheetName = data().getRange(row, 15).getDisplayValue().trim(); // ▶ O열에서 uniqueName 읽기
-  if (!sheetName) {
-    const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
-    const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
-    const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
-    const weight = `${weightVal}g`; // g 고정
-    const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
-    const expiryRaw = data().getRange(row, 8).getValue(); // O열: 유통기한 (Date 객체)
-    const expiry = Utilities.formatDate(
-      new Date(expiryRaw),
-      Session.getScriptTimeZone(),
-      'yy.MM.dd'
-    );
-    const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-'); // 기본 시트명 조합
+  
+  // 항상 baseName을 생성하여 시트 존재 여부 확인
+  const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
+  const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
+  const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
+  const weight = `${weightVal}g`; // g 고정
+  const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
+  const expiryRaw = data().getRange(row, 8).getValue(); // H열: 유통기한 (Date 객체)
+  const expiry = Utilities.formatDate(
+    new Date(expiryRaw),
+    Session.getScriptTimeZone(),
+    'yy.MM.dd'
+  );
+  const baseName = `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-'); // 기본 시트명 조합
 
+  // O열이 비어있거나 해당 시트명이 존재하지 않으면 fallback 실행
+  if (!sheetName || !ss.getSheetByName(sheetName)) {
     const shLatest = getLatestSheet(baseName); // ▶ 가장 최근(n 최대) 시트 객체
     if (!shLatest) {
+      console.log(`[PDF생성] 시트를 찾을 수 없음: baseName=${baseName}, row=${row}`);
       lock.releaseLock();
       throw new Error('시트가 없습니다: ' + baseName);
     }
     sheetName = shLatest.getName(); // ▶ fallback된 시트명
+    data().getRange(row, 15).setValue(sheetName); // 💡 fallback으로 찾은 시트 이름 O열에 기록
+    console.log(`[PDF생성] O열 업데이트: ${sheetName}, row=${row}`);
   }
 
   const sheet = ss.getSheetByName(sheetName); // ▶ 최종 sheetName으로 조회
   if (!sheet) {
+    console.log(`[PDF생성] 시트가 존재하지 않음: ${sheetName}, row=${row}`);
     lock.releaseLock();
     throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
   }
