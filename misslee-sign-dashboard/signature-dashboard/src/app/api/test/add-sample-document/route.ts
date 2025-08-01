@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         '', // K (빈 열)
         'FALSE', // L: 완료체크
         '', '', // M, N (빈 열)
-        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98' // O: 문서링크
+        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98?gid=0' // O: 문서링크
       ],
       [
         new Date(today.getTime() - 86400000).toISOString().split('T')[0].substring(2).replace(/-/g, '.'), // 어제
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         '',
         'FALSE',
         '', '',
-        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98'
+        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98?gid=1'
       ],
       [
         new Date(today.getTime() - 172800000).toISOString().split('T')[0].substring(2).replace(/-/g, '.'), // 2일 전
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         '',
         'FALSE',
         '', '',
-        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98'
+        'https://docs.google.com/spreadsheets/d/1A4oAr56J9ei2szU5vOm47UE5JlxjqfmmO4pXVVZmE98?gid=2'
       ]
     ];
 

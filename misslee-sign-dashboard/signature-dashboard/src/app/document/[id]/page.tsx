@@ -15,13 +15,12 @@ export default function DocumentDetailPage() {
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   useEffect(() => {
     // 인증 로딩 중이면 대기
     if (authLoading) {
       return;
     }
-    
+
     // 인증되지 않은 경우 로그인 페이지로 이동
     if (!isAuthenticated) {
       router.push('/login');
@@ -29,15 +28,15 @@ export default function DocumentDetailPage() {
     }
 
     const documentId = params.id as string;
-    
+
     // 실제 API 호출로 문서 미리보기 데이터 가져오기
     const fetchDocumentPreview = async () => {
       try {
         setIsLoading(true);
         console.log('문서 미리보기 요청:', documentId);
-        
+
         const response = await fetch(`/api/documents/${documentId}/preview`);
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             router.push('/login');
@@ -45,21 +44,23 @@ export default function DocumentDetailPage() {
           }
           const errorData = await response.json().catch(() => ({}));
           console.error('API 오류 응답:', errorData);
-          throw new Error(errorData.error || `문서를 불러오는데 실패했습니다. (${response.status})`);
+          throw new Error(
+            errorData.error || `문서를 불러오는데 실패했습니다. (${response.status})`
+          );
         }
-        
+
         const data = await response.json();
         console.log('문서 데이터:', data);
-        
+
         setSheetData(data.sheetData || []);
         setDocumentInfo(data);
       } catch (err) {
         console.error('=== 클라이언트 문서 미리보기 오류 ===');
         console.error('오류 객체:', err);
-        console.error('오류 메시지:', err?.message);
-        console.error('오류 스택:', err?.stack);
-        
-        const errorMessage = err?.message || '문서를 불러오는 중 오류가 발생했습니다.';
+        console.error('오류 메시지:', (err as Error)?.message);
+        console.error('오류 스택:', (err as Error)?.stack);
+
+        const errorMessage = (err as Error)?.message || '문서를 불러오는 중 오류가 발생했습니다.';
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -71,28 +72,27 @@ export default function DocumentDetailPage() {
 
   const handleSignature = async () => {
     if (!documentInfo) return;
-    
+
     const confirmMessage = `문서에 서명하시겠습니까?`;
     if (!window.confirm(confirmMessage)) return;
 
     setIsSigning(true);
-    
+
     try {
       const response = await fetch('/api/documents/sign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ documentId: documentInfo.documentId })
+        body: JSON.stringify({ documentId: documentInfo.documentId }),
       });
 
       if (!response.ok) {
         throw new Error('서명 처리에 실패했습니다.');
       }
-      
+
       alert('서명이 완료되었습니다!');
       router.push('/dashboard');
-      
     } catch (error) {
       console.error('Signature error:', error);
       alert('서명 처리 중 오류가 발생했습니다.');
@@ -165,11 +165,13 @@ export default function DocumentDetailPage() {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">문서 미리보기</h1>
                 <p className="text-sm text-gray-600">
-                  Google Sheets 데이터 ({sheetData.length}행)
+                  {documentInfo?.fileType === 'pdf'
+                    ? 'PDF 문서'
+                    : `Google Sheets 데이터 (${sheetData.length}행)`}
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <span className="text-sm text-gray-600">
                 {user?.name} ({user?.employeeNumber})
@@ -182,13 +184,14 @@ export default function DocumentDetailPage() {
       {/* 메인 컨텐츠 */}
       <div className="max-w-6xl mx-auto p-4">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
           {/* 문서 뷰어 (80% 너비) */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
               <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-gray-900">📋 문서 미리보기</h2>
+                  <h2 className="font-semibold text-gray-900">
+                    {documentInfo?.fileType === 'pdf' ? '📄 PDF 문서 미리보기' : '📋 문서 미리보기'}
+                  </h2>
                   <button
                     onClick={() => window.print()}
                     className="text-sm text-blue-600 hover:text-blue-700"
@@ -197,21 +200,63 @@ export default function DocumentDetailPage() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-6">
-                {documentInfo?.actualDocumentId && documentInfo?.gid ? (
-                  // Google Sheets 직접 임베드
+                {documentInfo?.fileType === 'pdf' && documentInfo?.previewUrl ? (
+                  // PDF 파일 미리보기
                   <div className="document-preview-embed">
                     <iframe
-                      src={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit?usp=sharing&gid=${documentInfo.gid}&rm=minimal&widget=true&chrome=false`}
+                      src={documentInfo.previewUrl}
                       className="w-full h-[700px] border border-gray-300 rounded"
-                      title="스프레드시트 보기"
+                      title="PDF 문서 미리보기"
                       frameBorder="0"
                       allowFullScreen
                     />
                     <div className="mt-4 text-center">
                       <a
-                        href={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit#gid=${documentInfo.gid}`}
+                        href={documentInfo.previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700 text-sm"
+                      >
+                        🔗 새 탭에서 열기
+                      </a>
+                    </div>
+                  </div>
+                ) : documentInfo?.actualDocumentId && documentInfo?.gid ? (
+                  // Google Sheets 읽기 전용 미리보기
+                  <div className="document-preview-embed">
+                    <iframe
+                      src={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit?usp=sharing&gid=${documentInfo.gid}&rm=minimal&widget=true&chrome=false&headers=false`}
+                      className="w-full h-[700px] border border-gray-300 rounded"
+                      title="문서 미리보기"
+                      frameBorder="0"
+                      allowFullScreen
+                    />
+                    <div className="mt-4 text-center">
+                      <a
+                        href={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit?gid=${documentInfo.gid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700 text-sm"
+                      >
+                        🔗 새 탭에서 열기
+                      </a>
+                    </div>
+                  </div>
+                ) : documentInfo?.previewUrl ? (
+                  // API에서 제공한 미리보기 URL 사용
+                  <div className="document-preview-embed">
+                    <iframe
+                      src={documentInfo.previewUrl}
+                      className="w-full h-[700px] border border-gray-300 rounded"
+                      title="문서 미리보기"
+                      frameBorder="0"
+                      allowFullScreen
+                    />
+                    <div className="mt-4 text-center">
+                      <a
+                        href={documentInfo.previewUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-700 text-sm"
@@ -231,14 +276,17 @@ export default function DocumentDetailPage() {
                     <table className="w-full border-collapse border border-gray-300">
                       <tbody>
                         {sheetData.map((row, rowIndex) => (
-                          <tr key={rowIndex} className={rowIndex === 0 ? 'bg-gray-50 font-medium' : ''}>
+                          <tr
+                            key={rowIndex}
+                            className={rowIndex === 0 ? 'bg-gray-50 font-medium' : ''}
+                          >
                             {Array.from({ length: 11 }).map((_, colIndex) => (
                               <td
                                 key={colIndex}
                                 className="border border-gray-300 p-2 text-sm"
-                                style={{ 
-                                  width: `${100/11}%`,
-                                  backgroundColor: row[colIndex] ? 'white' : '#f9f9f9'
+                                style={{
+                                  width: `${100 / 11}%`,
+                                  backgroundColor: row[colIndex] ? 'white' : '#f9f9f9',
                                 }}
                               >
                                 {row[colIndex] || ''}
@@ -288,8 +336,8 @@ export default function DocumentDetailPage() {
       {/* 인쇄용 스타일 */}
       <style jsx>{`
         @media print {
-          body { 
-            margin: 0; 
+          body {
+            margin: 0;
             font-family: Arial, sans-serif;
           }
           .document-preview table {
