@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Document } from '@/types';
+import PDFViewer from '@/components/PDFViewer';
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -202,27 +203,12 @@ export default function DocumentDetailPage() {
               </div>
 
               <div className="p-6">
-                {documentInfo?.fileType === 'pdf' && documentInfo?.previewUrl ? (
-                  // PDF 파일 미리보기
-                  <div className="document-preview-embed">
-                    <iframe
-                      src={documentInfo.previewUrl}
-                      className="w-full h-[700px] border border-gray-300 rounded"
-                      title="PDF 문서 미리보기"
-                      frameBorder="0"
-                      allowFullScreen
-                    />
-                    <div className="mt-4 text-center">
-                      <a
-                        href={documentInfo.previewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        🔗 새 탭에서 열기
-                      </a>
-                    </div>
-                  </div>
+                {documentInfo?.fileType === 'pdf' && documentInfo?.actualDocumentId ? (
+                  // PDF 파일 미리보기 (React PDF 뷰어 사용)
+                  <PDFViewer 
+                    fileId={documentInfo.actualDocumentId} 
+                    title={`PDF 문서 미리보기`}
+                  />
                 ) : documentInfo?.actualDocumentId && documentInfo?.gid ? (
                   // Google Sheets 읽기 전용 미리보기
                   <div className="document-preview-embed">
