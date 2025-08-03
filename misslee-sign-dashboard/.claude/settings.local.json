@@ -7,7 +7,11 @@
       "Bash(dir:*)",
       "Bash(npm run dev:*)",
       "WebFetch(domain:localhost)",
-      "Bash(timeout 5 tail -f .next/server.log)"
+      "Bash(timeout 5 tail -f .next/server.log)",
+      "Bash(rd:*)",
+      "Bash(rmdir:*)",
+      "Bash(rm:*)",
+      "Bash(npm install:*)"
     ],
     "deny": []
   }
