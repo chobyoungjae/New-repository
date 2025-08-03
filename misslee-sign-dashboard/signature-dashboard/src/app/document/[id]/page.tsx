@@ -16,6 +16,7 @@ export default function DocumentDetailPage() {
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
     // 인증 로딩 중이면 대기
     if (authLoading) {
@@ -150,7 +151,39 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <style jsx global>{`
+        
+        /* 인쇄용 스타일 */
+        @media print {
+          body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+          }
+          .document-preview table {
+            font-size: 11px;
+            page-break-inside: avoid;
+            width: 100%;
+          }
+          .document-preview td {
+            padding: 3px;
+            font-size: 10px;
+          }
+          /* 사이드바 숨기기 */
+          .lg\\:col-span-1 {
+            display: none !important;
+          }
+          /* 메인 컨텐츠 전체 너비로 */
+          .lg\\:col-span-3 {
+            grid-column: span 4 / span 4;
+          }
+          /* 헤더 간소화 */
+          .bg-gray-50 {
+            background: white !important;
+          }
+        }
+      `}</style>
+      <div className="min-h-screen bg-gray-50">
       {/* 헤더 */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -183,16 +216,36 @@ export default function DocumentDetailPage() {
       </div>
 
       {/* 메인 컨텐츠 */}
-      <div className="max-w-6xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* 문서 뷰어 (80% 너비) */}
+      <div className="max-w-6xl mx-auto p-2 md:p-4">
+        <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6">
+          {/* 서명하기 버튼 - 모바일에서 상단으로 이동 */}
+          <div className="lg:hidden order-first">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
+              <button
+                onClick={handleSignature}
+                disabled={isSigning}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-md font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSigning ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>서명 처리 중...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <span>✍️</span>
+                    <span>서명하기</span>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* 문서 뷰어 */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-gray-900">
-                    {documentInfo?.fileType === 'pdf' ? '📄 PDF 문서 미리보기' : '📋 문서 미리보기'}
-                  </h2>
+              <div className="hidden md:block bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <div className="flex items-center justify-end">
                   <button
                     onClick={() => window.print()}
                     className="text-sm text-blue-600 hover:text-blue-700"
@@ -202,54 +255,34 @@ export default function DocumentDetailPage() {
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="p-2 md:p-6">
                 {documentInfo?.fileType === 'pdf' && documentInfo?.actualDocumentId ? (
                   // PDF 파일 미리보기 (React PDF 뷰어 사용)
                   <PDFViewer 
                     fileId={documentInfo.actualDocumentId} 
-                    title={`PDF 문서 미리보기`}
+                    title={`PDF 문서`}
                   />
                 ) : documentInfo?.actualDocumentId && documentInfo?.gid ? (
                   // Google Sheets 읽기 전용 미리보기
                   <div className="document-preview-embed">
                     <iframe
                       src={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit?usp=sharing&gid=${documentInfo.gid}&rm=minimal&widget=true&chrome=false&headers=false`}
-                      className="w-full h-[700px] border border-gray-300 rounded"
+                      className="w-full h-[585px] md:h-[680px] border border-gray-300 rounded"
                       title="문서 미리보기"
                       frameBorder="0"
                       allowFullScreen
                     />
-                    <div className="mt-4 text-center">
-                      <a
-                        href={`https://docs.google.com/spreadsheets/d/${documentInfo.actualDocumentId}/edit?gid=${documentInfo.gid}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        🔗 새 탭에서 열기
-                      </a>
-                    </div>
                   </div>
                 ) : documentInfo?.previewUrl ? (
                   // API에서 제공한 미리보기 URL 사용
                   <div className="document-preview-embed">
                     <iframe
                       src={documentInfo.previewUrl}
-                      className="w-full h-[700px] border border-gray-300 rounded"
+                      className="w-full h-[585px] md:h-[680px] border border-gray-300 rounded"
                       title="문서 미리보기"
                       frameBorder="0"
                       allowFullScreen
                     />
-                    <div className="mt-4 text-center">
-                      <a
-                        href={documentInfo.previewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        🔗 새 탭에서 열기
-                      </a>
-                    </div>
                   </div>
                 ) : sheetData.length > 0 ? (
                   // HTML 테이블 백업
@@ -293,10 +326,9 @@ export default function DocumentDetailPage() {
             </div>
           </div>
 
-          {/* 사이드바 (20% 너비) */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* 서명 버튼 */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          {/* 데스크톱 사이드바 서명 버튼 */}
+          <div className="hidden lg:block lg:col-span-1">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sticky top-4">
               <button
                 onClick={handleSignature}
                 disabled={isSigning}
@@ -319,36 +351,7 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      {/* 인쇄용 스타일 */}
-      <style jsx>{`
-        @media print {
-          body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-          }
-          .document-preview table {
-            font-size: 11px;
-            page-break-inside: avoid;
-            width: 100%;
-          }
-          .document-preview td {
-            padding: 3px;
-            font-size: 10px;
-          }
-          /* 사이드바 숨기기 */
-          .lg\\:col-span-1 {
-            display: none !important;
-          }
-          /* 메인 컨텐츠 전체 너비로 */
-          .lg\\:col-span-3 {
-            grid-column: span 4 / span 4;
-          }
-          /* 헤더 간소화 */
-          .bg-gray-50 {
-            background: white !important;
-          }
-        }
-      `}</style>
-    </div>
+      </div>
+    </>
   );
 }
