@@ -15,6 +15,7 @@ const auth = new google.auth.GoogleAuth({
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
+const drive = google.drive({ version: 'v3', auth });
 
 const MAIN_SPREADSHEET_ID = process.env.MAIN_SPREADSHEET_ID || '';
 
@@ -150,6 +151,8 @@ export class GoogleSheetsService {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
         range: 'A:O', // A(날짜) ~ O(문서링크) - PRD 구조
+        valueRenderOption: 'UNFORMATTED_VALUE', // 포맷되지 않은 원본 값
+        dateTimeRenderOption: 'FORMATTED_STRING'
       });
 
       const rows = response.data.values || [];
@@ -173,9 +176,17 @@ export class GoogleSheetsService {
         const documentLink = row[14] || ''; // O: 문서링크
         
         console.log(`행 ${i}: 제목="${title}", 완료상태="${isCompleted}"`);
+        console.log(`서명 데이터: 팀장="${teamLeaderSig}", 검토="${reviewSig}", 대표="${ceoSig}"`);
+        console.log(`서명 타입: 팀장=${typeof teamLeaderSig}, 검토=${typeof reviewSig}, 대표=${typeof ceoSig}`);
+        console.log(`서명 길이: 팀장=${teamLeaderSig?.length}, 검토=${reviewSig?.length}, 대표=${ceoSig?.length}`);
         
         // 완료되지 않은 문서만 반환 (L열이 FALSE 또는 비어있음)
         if (!isCompleted || isCompleted.toLowerCase() !== 'true') {
+          // 셀 메타데이터에서 이미지 URL 추출 시도
+          const teamLeaderImageUrl = await this.getCellImageInfo(sheetId, i, 7); // H열 (7번째 인덱스)
+          const reviewImageUrl = await this.getCellImageInfo(sheetId, i, 8); // I열 (8번째 인덱스)  
+          const ceoImageUrl = await this.getCellImageInfo(sheetId, i, 9); // J열 (9번째 인덱스)
+          
           documents.push({
             id: `${sheetId}_${i}`,
             date: date,
@@ -185,6 +196,9 @@ export class GoogleSheetsService {
             teamLeaderSignature: teamLeaderSig,
             reviewSignature: reviewSig,
             ceoSignature: ceoSig,
+            teamLeaderSignatureImage: teamLeaderImageUrl || GoogleSheetsService.extractImageUrl(teamLeaderSig),
+            reviewSignatureImage: reviewImageUrl || GoogleSheetsService.extractImageUrl(reviewSig),
+            ceoSignatureImage: ceoImageUrl || GoogleSheetsService.extractImageUrl(ceoSig),
             isCompleted: false,
             documentLink: documentLink, // O열의 문서 링크
           });
@@ -196,6 +210,134 @@ export class GoogleSheetsService {
     } catch (error) {
       console.error('Error fetching documents:', error);
       throw new Error('문서 조회 중 오류가 발생했습니다.');
+    }
+  }
+
+  // 셀 메타데이터에서 이미지 정보 확인
+  private static async getCellImageInfo(sheetId: string, rowIndex: number, colIndex: number): Promise<string | undefined> {
+    try {
+      console.log(`셀 이미지 정보 조회: 시트=${sheetId}, 행=${rowIndex}, 열=${colIndex}`);
+      
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: sheetId,
+        ranges: [`R${rowIndex + 1}C${colIndex + 1}`],
+        includeGridData: true,
+      });
+
+      const sheet = spreadsheet.data.sheets?.[0];
+      const gridData = sheet?.data?.[0];
+      const rowData = gridData?.rowData?.[0];
+      const cellData = rowData?.values?.[0];
+
+      console.log('셀 데이터:', JSON.stringify(cellData, null, 2));
+
+      // 이미지가 있는 경우 effectiveValue나 다른 속성에서 URL 찾기
+      if (cellData?.effectiveValue) {
+        console.log('effectiveValue:', cellData.effectiveValue);
+      }
+      
+      if (cellData?.userEnteredValue) {
+        console.log('userEnteredValue:', cellData.userEnteredValue);
+      }
+
+      // 이미지 URL 추출 시도
+      const effectiveValue = cellData?.effectiveValue?.stringValue || '';
+      const userValue = cellData?.userEnteredValue?.stringValue || '';
+      
+      // 기본 URL 추출 시도
+      let imageUrl = this.extractImageUrl(effectiveValue) || this.extractImageUrl(userValue);
+      
+      // 이미지 URL이 없고 셀에 이미지 객체가 있는 경우 Drive API 시도
+      if (!imageUrl && cellData) {
+        imageUrl = await this.tryExtractImageFromDrive(cellData);
+      }
+      
+      return imageUrl;
+    } catch (error) {
+      console.error('셀 이미지 정보 조회 오류:', error);
+      return undefined;
+    }
+  }
+
+  // IMPORTRANGE 함수 결과에서 이미지 URL 추출
+  private static extractImageUrl(cellValue: string): string | undefined {
+    if (!cellValue) return undefined;
+    
+    console.log('이미지 URL 추출 시도:', cellValue);
+    
+    // 다양한 Google 이미지 URL 패턴들
+    const patterns = [
+      // Google Drive 직접 링크
+      /https:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i,
+      // Google Drive uc 링크  
+      /https:\/\/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/i,
+      // Google Docs 이미지
+      /https:\/\/docs\.google\.com\/[^\s"']+/i,
+      // 일반적인 Google 도메인 이미지
+      /https:\/\/[^.\s]*\.google\.com\/[^\s"']+\.(jpg|jpeg|png|gif|webp)/i,
+      // 모든 Google 링크
+      /https:\/\/[^.\s]*\.google\.com\/[^\s"']+/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = cellValue.match(pattern);
+      if (match) {
+        let imageUrl = match[0];
+        
+        // Google Drive 파일 ID가 있는 경우 공개 뷰어 URL로 변환
+        const fileIdMatch = imageUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)/);
+        if (fileIdMatch) {
+          const fileId = fileIdMatch[1] || fileIdMatch[2];
+          imageUrl = `https://drive.google.com/uc?id=${fileId}&export=view`;
+        }
+        
+        console.log('추출된 이미지 URL:', imageUrl);
+        return imageUrl;
+      }
+    }
+    
+    // JSON 형태의 값에서 URL 추출 시도
+    try {
+      const parsed = JSON.parse(cellValue);
+      if (parsed.url || parsed.src || parsed.href) {
+        const url = parsed.url || parsed.src || parsed.href;
+        console.log('JSON에서 추출된 URL:', url);
+        return url;
+      }
+    } catch {
+      // JSON 파싱 실패는 무시
+    }
+    
+    console.log('이미지 URL을 찾을 수 없음');
+    return undefined;
+  }
+
+  // Drive API를 통한 이미지 추출 시도
+  private static async tryExtractImageFromDrive(cellData: any): Promise<string | undefined> {
+    try {
+      console.log('Drive API로 이미지 검색 시도');
+      
+      // 셀 데이터에서 이미지 관련 정보 찾기
+      const formats = cellData?.effectiveFormat || {};
+      const textFormat = formats?.textFormat || {};
+      
+      // 이미지 ID나 링크 정보가 있는지 확인
+      if (textFormat?.link && textFormat.link.uri) {
+        console.log('텍스트 포맷에서 링크 발견:', textFormat.link.uri);
+        return this.extractImageUrl(textFormat.link.uri);
+      }
+      
+      // 셀에 하이퍼링크가 있는 경우
+      if (cellData?.hyperlink) {
+        console.log('하이퍼링크 발견:', cellData.hyperlink);
+        return this.extractImageUrl(cellData.hyperlink);
+      }
+      
+      console.log('Drive API에서 이미지를 찾을 수 없음');
+      return undefined;
+    } catch (error) {
+      console.error('Drive API 이미지 추출 오류:', error);
+      return undefined;
     }
   }
 

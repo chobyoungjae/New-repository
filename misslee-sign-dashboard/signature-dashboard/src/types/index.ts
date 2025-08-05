@@ -19,6 +19,9 @@ export interface Document {
   teamLeaderSignature?: string;
   reviewSignature?: string;
   ceoSignature?: string;
+  teamLeaderSignatureImage?: string; // H열 이미지 URL
+  reviewSignatureImage?: string; // I열 이미지 URL
+  ceoSignatureImage?: string; // J열 이미지 URL
   isCompleted: boolean;
   documentLink?: string;
 }

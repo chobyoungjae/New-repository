@@ -109,13 +109,10 @@ export default function DashboardPage() {
       
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* 대시보드 헤더 */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            미서명 문서 ({documents.length}건)
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+            미서명 문서({documents.length}건)
           </h2>
-          <p className="text-gray-600">
-            서명이 필요한 문서들을 확인하고 처리하세요.
-          </p>
         </div>
 
         {/* 로딩 상태 */}
