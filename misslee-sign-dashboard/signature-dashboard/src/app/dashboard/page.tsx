@@ -147,7 +147,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {documents.map((document) => (
                   <DocumentCard
                     key={document.id}

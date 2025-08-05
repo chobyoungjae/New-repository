@@ -28,7 +28,9 @@ export const Header: React.FC = () => {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">📝</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">서명 대시보드</h1>
+            <h1 className="text-xl font-bold text-gray-900">
+              서명 대시보드 - {user?.name}
+            </h1>
           </div>
 
           {/* 사용자 정보 및 액션 */}
@@ -53,29 +55,15 @@ export const Header: React.FC = () => {
               <span className="text-lg">🔄</span>
             </button>
 
-            {/* 사용자 정보 */}
-            <div className="flex items-center space-x-2">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.employeeNumber}</p>
-              </div>
-              
-              {/* 로그아웃 버튼 */}
-              <button
-                onClick={handleLogout}
-                className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                title="로그아웃"
-              >
-                <span className="text-lg">🚪</span>
-              </button>
-            </div>
+            {/* 로그아웃 버튼 */}
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              title="로그아웃"
+            >
+              <span className="text-lg">🚪</span>
+            </button>
           </div>
-        </div>
-
-        {/* 모바일용 사용자 정보 */}
-        <div className="sm:hidden mt-2 pt-2 border-t border-gray-100">
-          <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-          <p className="text-xs text-gray-500">{user?.employeeNumber}</p>
         </div>
       </div>
     </header>
