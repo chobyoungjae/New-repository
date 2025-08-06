@@ -58,7 +58,12 @@ export async function GET(request: NextRequest) {
 
     // 개인 스프레드시트에서 미서명 문서 조회
     console.log('문서 조회 시작, 스프레드시트 ID:', user.personalSheetId);
-    const documents = await GoogleSheetsService.getUnsignedDocuments(user.personalSheetId);
+    
+    // 쿼리 파라미터로 고급 이미지 추출 사용 여부 결정
+    const useAdvancedImageExtraction = request.nextUrl.searchParams.get('advanced') === 'true';
+    console.log('고급 이미지 추출 사용:', useAdvancedImageExtraction);
+    
+    const documents = await GoogleSheetsService.getUnsignedDocuments(user.personalSheetId, useAdvancedImageExtraction);
     console.log('조회된 문서 개수:', documents.length);
 
     return NextResponse.json({ documents });
