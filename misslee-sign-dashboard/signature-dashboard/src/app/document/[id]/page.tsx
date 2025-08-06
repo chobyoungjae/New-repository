@@ -294,25 +294,30 @@ export default function DocumentDetailPage() {
                     </div>
                     <table className="w-full border-collapse border border-gray-300">
                       <tbody>
-                        {sheetData.map((row, rowIndex) => (
-                          <tr
-                            key={rowIndex}
-                            className={rowIndex === 0 ? 'bg-gray-50 font-medium' : ''}
-                          >
-                            {Array.from({ length: 11 }).map((_, colIndex) => (
-                              <td
-                                key={colIndex}
-                                className="border border-gray-300 p-2 text-sm"
-                                style={{
-                                  width: `${100 / 11}%`,
-                                  backgroundColor: row[colIndex] ? 'white' : '#f9f9f9',
-                                }}
-                              >
-                                {row[colIndex] || ''}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
+                        {sheetData.map((row, rowIndex) => {
+                          // 각 행의 실제 열 개수를 계산 (전체 데이터에서 최대 열 개수 사용)
+                          const maxCols = Math.max(...sheetData.map(r => r.length));
+                          
+                          return (
+                            <tr
+                              key={rowIndex}
+                              className={rowIndex === 0 ? 'bg-gray-50 font-medium' : ''}
+                            >
+                              {Array.from({ length: maxCols }).map((_, colIndex) => (
+                                <td
+                                  key={colIndex}
+                                  className="border border-gray-300 p-2 text-sm"
+                                  style={{
+                                    width: `${100 / maxCols}%`,
+                                    backgroundColor: row[colIndex] ? 'white' : '#f9f9f9',
+                                  }}
+                                >
+                                  {row[colIndex] || ''}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

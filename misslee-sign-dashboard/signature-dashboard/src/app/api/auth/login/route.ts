@@ -48,7 +48,14 @@ export async function POST(request: NextRequest) {
         personalSheetId = await GoogleSheetsService.getPersonalSheetIdByName(user.name);
         if (personalSheetId) {
           console.log('기존 개인 스프레드시트 찾음:', personalSheetId);
-          // TODO: 메인 스프레드시트의 사용자 정보 업데이트 필요
+          // 메인 스프레드시트의 사용자 정보 업데이트
+          try {
+            await GoogleSheetsService.updateUserPersonalSheetId(user.username, personalSheetId);
+            console.log('사용자 개인 스프레드시트 ID 업데이트 완료');
+          } catch (updateError) {
+            console.error('개인 스프레드시트 ID 업데이트 실패:', updateError);
+            // 업데이트 실패해도 로그인은 계속 진행
+          }
         } else {
           console.log('개인 스프레드시트를 찾지 못했습니다.');
         }
