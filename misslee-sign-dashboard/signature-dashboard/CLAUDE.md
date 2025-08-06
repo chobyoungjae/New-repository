@@ -130,6 +130,48 @@ JWT_SECRET=
 - 구체적 요구사항 명시
 - 한국어로 소통 및 응답
 
+## 중요한 개발 주의사항 및 함정
+
+### 🚨 Google Sheets ID 파싱 주의사항
+**문제**: Google Sheets ID 자체에 언더스코어(`_`)가 포함될 수 있음
+**증상**: `documentId.split('_')`로 파싱 시 잘못된 분할로 "유효하지 않은 문서 ID" 오류
+
+**올바른 해결법**:
+```typescript
+// ❌ 잘못된 방법 - 첫 번째 _로 분할
+const [sheetId, rowIndexStr] = documentId.split('_');
+
+// ✅ 올바른 방법 - 마지막 _로 분할  
+const lastUnderscoreIndex = documentId.lastIndexOf('_');
+const sheetId = documentId.substring(0, lastUnderscoreIndex);
+const rowIndexStr = documentId.substring(lastUnderscoreIndex + 1);
+```
+
+### 🚨 Next.js 15 Params 처리
+**문제**: Next.js 15에서 params가 Promise로 변경됨
+**해결법**:
+```typescript
+// ✅ Next.js 15 호환
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+}
+```
+
+### 🚨 PDF 뷰어 SSR 문제
+**문제**: react-pdf의 DOMMatrix가 서버사이드에서 정의되지 않음
+**해결법**:
+```typescript
+// ✅ 동적 import로 SSR 비활성화
+const PDFViewer = dynamic(() => import('@/components/PDFViewer'), { ssr: false });
+```
+
+### 🚨 Google Sheets API 권한 확인
+**증상**: 같은 계정 소유 파일인데 Service Account로 접근 안됨
+**체크리스트**:
+1. Service Account 이메일이 스프레드시트에 공유되어 있는지
+2. PDF 파일들이 "링크가 있는 모든 사용자" 권한인지
+3. 폴더 권한 상속 설정 확인
+
 ## Testing
 
 No specific test framework is configured. Manual testing involves:

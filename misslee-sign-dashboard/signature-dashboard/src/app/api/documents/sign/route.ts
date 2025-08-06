@@ -60,9 +60,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // documentId에서 시트 ID와 행 번호 추출
+    // documentId에서 시트 ID와 행 번호 추출 - 마지막 '_'로만 분할
     // documentId 형식: "{sheetId}_{rowIndex}"
-    const [sheetId, rowIndexStr] = documentId.split('_');
+    const lastUnderscoreIndex = documentId.lastIndexOf('_');
+    const sheetId = documentId.substring(0, lastUnderscoreIndex);
+    const rowIndexStr = documentId.substring(lastUnderscoreIndex + 1);
     const rowIndex = parseInt(rowIndexStr);
     console.log('파싱된 정보:', { sheetId, rowIndex, rowIndexStr });
 
