@@ -49,7 +49,17 @@ export const Header: React.FC = () => {
             {/* 새로고침 버튼 */}
             <button
               onClick={handleRefresh}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              className="hidden sm:flex items-center space-x-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              title="새로고침"
+            >
+              <span className="text-lg">🔄</span>
+              <span>새로고침</span>
+            </button>
+
+            {/* 모바일 새로고침 버튼 */}
+            <button
+              onClick={handleRefresh}
+              className="sm:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
               title="새로고침"
             >
               <span className="text-lg">🔄</span>
@@ -58,10 +68,28 @@ export const Header: React.FC = () => {
             {/* 로그아웃 버튼 */}
             <button
               onClick={handleLogout}
-              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              className="hidden sm:flex items-center space-x-2 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
               title="로그아웃"
             >
-              <span className="text-lg">🚪</span>
+              <img 
+                src="/logout-icon.png" 
+                alt="로그아웃" 
+                className="w-5 h-5"
+              />
+              <span>로그아웃</span>
+            </button>
+
+            {/* 모바일 로그아웃 버튼 */}
+            <button
+              onClick={handleLogout}
+              className="sm:hidden p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              title="로그아웃"
+            >
+              <img 
+                src="/logout-icon.png" 
+                alt="로그아웃" 
+                className="w-5 h-5"
+              />
             </button>
           </div>
         </div>
