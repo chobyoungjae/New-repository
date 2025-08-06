@@ -14,6 +14,7 @@ const CFG = {
     REVIEWER_SIG: 15, // << 리뷰어 서명 컬럼 인덱스
     CEO: 16, // << CEO 컬럼 인덱스
     CEO_SIG: 17, // << CEO 서명 컬럼 인덱스
+    UNIQUE_NAME: 21, // << U열: 유니크네임 컬럼 인덱스
   },
   BOARD_ID: {
     // << 보드 ID 매핑
@@ -26,6 +27,34 @@ const ss = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 �
 const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오는 함수
 const tpl = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 
+/**
+ * 새로운 시트명 생성 함수: B열_F열_C열_G열~H열(J열) 형태
+ */
+function generateSheetName(row) {
+  const bCol = data().getRange(row, 2).getValue().toString().trim(); // B열
+  const fCol = data().getRange(row, 6).getValue().toString().trim(); // F열
+  const cCol = data().getRange(row, 3).getValue().toString().trim(); // C열
+  const gCol = data().getRange(row, 7).getValue(); // G열 (날짜)
+  const hCol = data().getRange(row, 8).getValue(); // H열 (날짜)
+  const jCol = data().getRange(row, 10).getValue().toString().trim(); // J열
+
+  // 날짜 포맷팅 (2025. 8. 5 형태)
+  const formatDate = dateVal => {
+    if (dateVal instanceof Date) {
+      return Utilities.formatDate(dateVal, Session.getScriptTimeZone(), 'yyyy. M. d');
+    }
+    return dateVal.toString().trim();
+  };
+
+  const gFormatted = formatDate(gCol);
+  const hFormatted = formatDate(hCol);
+
+  return `${bCol}_${fCol}_${cCol}_${gFormatted}~${hFormatted}(${jCol})`.replace(
+    /[/\\?%*:|"<>]/g,
+    '-'
+  );
+}
+
 /******** 1. 양식 제출 시 – 팀장 보드로 ********/ // << 폼 제출 트리거 부분 시작
 function onFormSubmit(e) {
   // << 폼 제출 시 호출 함수
@@ -33,14 +62,15 @@ function onFormSubmit(e) {
   let sheetUrl = ''; // << 개인 시트 URL 초기화
 
   // per-person 시트 생성 및 타임스탬프
-  const owner = data().getRange(row, 2).getValue().toString().trim(); // << 신청자 이름 획득
-  if (owner) {
-    // << 신청자 이름이 있으면
-    const old = ss.getSheetByName(owner); // << 기존 개인 시트 확인
+  const sheetName = generateSheetName(row); // << 새로운 시트명 생성
+  if (sheetName) {
+    // << 시트명이 생성되면
+    const old = ss.getSheetByName(sheetName); // << 기존 시트 확인
     if (old) ss.deleteSheet(old); // << 기존 시트 삭제
-    const s = tpl().copyTo(ss).setName(owner); // << 템플릿 복사 후 개인 시트 생성
+    const s = tpl().copyTo(ss).setName(sheetName); // << 템플릿 복사 후 시트 생성
     s.getRange('F5').setValue(data().getRange(row, 1).getValue()); // << 타임스탬프 삽입
-    sheetUrl = ss.getUrl().replace(/\/edit.*$/, '') + `/edit?gid=${s.getSheetId()}`; // << 개인 시트 URL 생성
+    data().getRange(row, CFG.COL.UNIQUE_NAME).setValue(sheetName); // << U열에 시트명 저장
+    sheetUrl = ss.getUrl().replace(/\/edit.*$/, '') + `/edit?gid=${s.getSheetId()}`; // << 시트 URL 생성
   }
 
   // 팀장명 셋업
@@ -164,12 +194,108 @@ function lookupExecUrlByScriptId(scriptId) {
 
 /********* 개인 시트 URL 계산 *********/ // << 개인 시트 URL 계산 함수
 function getPersonalSheetUrl(row) {
-  const owner = data().getRange(row, 2).getDisplayValue().trim(); // << 신청자 이름
-  if (!owner) return ''; // << 이름 없으면 빈 문자열
-  const sh = ss.getSheetByName(owner); // << 개인 시트
+  const sheetName = data().getRange(row, CFG.COL.UNIQUE_NAME).getDisplayValue().trim(); // << U열에서 시트명 읽기
+  if (!sheetName) return ''; // << 시트명 없으면 빈 문자열
+  const sh = ss.getSheetByName(sheetName); // << 시트 객체
   return sh
     ? ss.getUrl().replace(/\/edit.*$/, '') + `/edit?gid=${sh.getSheetId()}` // << URL
     : ''; // << 없으면 빈
+}
+
+/********* PDF 생성 함수 (code.js 로직 적용) *********/ // << PDF 생성 및 Drive 업로드 (파일 ID 반환)
+function createPdfFromSheet(row, moveOldToTrash = false) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000); // << 동시 실행 방지
+
+  try {
+    // ① U열에서 시트명 읽기
+    const sheetName = data().getRange(row, CFG.COL.UNIQUE_NAME).getDisplayValue().trim();
+    if (!sheetName) {
+      throw new Error('시트명을 찾을 수 없습니다');
+    }
+
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
+    }
+
+    // ② PDF URL 구성 및 Blob 생성
+    const baseUrl = ss.getUrl().replace(/\/edit$/, ''); // << 스프레드시트 기본 URL
+    const gid = sheet.getSheetId(); // << 대상 시트 GID
+    const pdfUrl =
+      baseUrl +
+      '/export?format=pdf' + // << PDF export URL 시작
+      '&gid=' +
+      gid +
+      '&size=A4' +
+      '&portrait=true' +
+      '&scale=5' + // << 확대 배율
+      '&spct=1.15' + // << 인쇄 비율
+      '&gridlines=false' +
+      '&sheetnames=false' +
+      '&printtitle=false' +
+      '&top_margin=1.2' + // << 상단 여백
+      '&bottom_margin=1.2' + // << 하단 여백
+      '&left_margin=0.7' + // << 좌측 여백
+      '&right_margin=0.7'; // << 우측 여백
+
+    const blob = UrlFetchApp.fetch(pdfUrl, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, // << OAuth 토큰 사용
+    }).getBlob(); // << PDF Blob 생성
+
+    // ③ 파일명 설정
+    const ts = data().getRange(row, 1).getValue(); // << A열: 타임스탬프
+    const formatted = Utilities.formatDate(
+      new Date(ts),
+      Session.getScriptTimeZone(),
+      'yyyy-MM-dd_HH:mm:ss'
+    );
+    const fileName = `전자서명 휴가신청서(대시보드)_${formatted}_${sheetName}.pdf`;
+    blob.setName(fileName);
+
+    const folder = DriveApp.getFolderById(CFG.PDF_FOLDER);
+
+    // ④ 기존 파일 휴지통 이동 (서명 완료 시)
+    if (moveOldToTrash) {
+      console.log(`[PDF생성] 기존 파일 휴지통 이동 중: ${fileName}`);
+
+      // 정확한 파일명 패턴으로 검색
+      const filePrefix = '전자서명 휴가신청서(대시보드)_';
+      const fileSuffix = `.pdf`;
+
+      const allFiles = folder.getFiles();
+      let trashCount = 0;
+
+      // 폴더 내 매칭 파일들을 휴지통으로 이동
+      while (allFiles.hasNext()) {
+        const file = allFiles.next();
+        const currentFileName = file.getName();
+
+        // 정확한 패턴 매칭: 시작 부분 + 시트명 + .pdf
+        if (
+          currentFileName.startsWith(filePrefix) &&
+          currentFileName.includes(`_${sheetName}${fileSuffix}`)
+        ) {
+          try {
+            file.setTrashed(true);
+            trashCount++;
+            console.log(`[PDF생성] 파일 휴지통 이동 성공: ${currentFileName}`);
+          } catch (error) {
+            console.log(`[PDF생성] 파일 휴지통 이동 실패: ${currentFileName} - ${error.message}`);
+          }
+        }
+      }
+
+      console.log(`[PDF생성] 휴지통 이동 완료 - 총 ${trashCount}개 파일 처리`);
+    }
+
+    // ⑤ 새 PDF 파일 생성
+    const pdfFile = folder.createFile(blob);
+
+    return pdfFile.getId(); // << PDF 파일 ID 반환
+  } finally {
+    lock.releaseLock(); // << 락 해제 (항상 실행)
+  }
 }
 
 /********* 보드 전송 함수 *********/ // << 보드에 데이터 전송 함수
@@ -179,14 +305,18 @@ function pushToBoard(boardId, role, srcRow, url) {
   const sh = SpreadsheetApp.openById(boardId).getSheets()[0]; // << 보드 시트
   const dstRow = sh.getLastRow() + 1; // << 추가할 행번호
 
+  // PDF 생성 (기존 파일 휴지통 이동)
+  const pdfFileId = createPdfFromSheet(srcRow, true); // << PDF 생성 및 기존 파일 휴지통 이동
+
   // 1) A~G 값 쓰기
   const ts = new Date(); // << 타임스탬프
   const docName = '전자서명 휴가신청서(대시보드)'; // << 문서명
+  const sheetName = data().getRange(srcRow, CFG.COL.UNIQUE_NAME).getDisplayValue().trim(); // << U열에서 시트명
   const vals = [
     ts,
     docName,
     data().getRange(srcRow, 2).getValue(),
-    data().getRange(srcRow, 3).getValue(),
+    sheetName, // << D열에 시트명 입력
     data().getRange(srcRow, 7).getValue(),
     data().getRange(srcRow, 8).getValue(),
     data().getRange(srcRow, 10).getValue(),
@@ -195,7 +325,7 @@ function pushToBoard(boardId, role, srcRow, url) {
 
   // 2) 원본 행 번호 및 개인 시트 URL
   sh.getRange(dstRow, 11).setValue(srcRow); // << 원본 행 기록
-  if (url) sh.getRange(dstRow, 15).setValue(url); // << 개인 시트 링크 기록
+  if (url) sh.getRange(dstRow, 14).setValue(url); // << 개인 시트 링크 기록 (N열로 변경)
 
   // 3) IMPORTRANGE 설정
   const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","A시트!${c}${srcRow}"),"")`; // << IMPORTRANGE 수식
@@ -209,6 +339,9 @@ function pushToBoard(boardId, role, srcRow, url) {
   // 5) 서명 하이퍼링크
   const execUrl = lookupExecUrlByScriptId(ScriptApp.getScriptId()); // << 실행 URL 조회
   sh.getRange(dstRow, 13).setFormula(`=HYPERLINK("${execUrl}?role=${role}&row=${srcRow}","")`); // << 서명 버튼 링크
+
+  // 6) PDF 파일 ID를 O열에 기록
+  sh.getRange(dstRow, 15).setValue(pdfFileId); // << PDF 파일 ID 기록
 }
 
 /********* 캘린더 등록 *********/ // << 캘린더 등록 함수
@@ -268,15 +401,15 @@ function getColorId(team) {
   }
 }
 
-/********* PDF 생성 및 알림 *********/ // << PDF 생성 및 Drive 업로드
+/********* 최종 PDF 생성 및 알림 *********/ // << PDF 생성 및 Drive 업로드
 function exportPdfAndNotify(row) {
   // << PDF 생성 후 폴더에 저장
   const lock = LockService.getScriptLock();
   lock.waitLock(30000); // << 동시 실행 방지
   try {
-    const owner = data().getRange(row, 2).getDisplayValue().trim(); // << 신청자 이름
-    const sheet = ss.getSheetByName(owner); // << 개인 시트
-    if (!sheet) throw new Error('개인 시트를 찾을 수 없습니다: ' + owner); // << 예외 처리
+    const sheetName = data().getRange(row, CFG.COL.UNIQUE_NAME).getDisplayValue().trim(); // << U열에서 시트명
+    const sheet = ss.getSheetByName(sheetName); // << 시트 객체
+    if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName); // << 예외 처리
 
     const baseUrl = ss.getUrl().replace(/\/edit$/, ''); // << 기본 URL
     const gid = sheet.getSheetId(); // << 시트 ID
@@ -306,7 +439,7 @@ function exportPdfAndNotify(row) {
       Session.getScriptTimeZone(),
       'yyyy-MM-dd_HH:mm:ss'
     ); // << 파일명 포맷
-    blob.setName(`휴가신청서_${formatted}_${owner}.pdf`); // << Blob 이름 설정
+    blob.setName(`휴가신청서_${formatted}_${sheetName}.pdf`); // << Blob 이름 설정
     DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
   } finally {
     lock.releaseLock(); // << 락 해제
