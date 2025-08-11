@@ -173,8 +173,8 @@ function sendKakaoToTarget(message) {
         object_type: 'text',
         text: message,
         link: {
-          web_url: 'https://docs.google.com/spreadsheets/d/' + SpreadsheetApp.getActive().getId(),
-          mobile_web_url: 'https://docs.google.com/spreadsheets/d/' + SpreadsheetApp.getActive().getId(),
+          web_url: 'https://kakao-test-ebon.vercel.app/go.html?doc=온습도점검표',
+          mobile_web_url: 'https://kakao-test-ebon.vercel.app/go.html?doc=온습도점검표',
         },
         button_title: '점검표 보기',
       }),
@@ -206,37 +206,35 @@ function sendKakaoToTarget(message) {
 }
 
 /**
- * 현재 스프레드시트의 UUID 시트에서 이름→UUID 매핑 객체 생성
+ * UUID 시트에서 이름→UUID 매핑 객체 생성
+ * A열=이름, B열=UUID 구조
  * @return {Object}
  */
 function getFriendMap() {
   try {
     const ss = SpreadsheetApp.getActive();
     const uuidSheet = ss.getSheetByName(KAKAO_CONFIG.TOKEN_SHEET_NAME);
-    const data = uuidSheet.getDataRange().getValues();
+    const lastRow = uuidSheet.getLastRow();
     const map = {};
     
-    // 헤더 행을 찾아서 이름과 UUID 컬럼 위치 확인
-    let nameCol = -1, uuidCol = -1;
-    for (let j = 0; j < data[0].length; j++) {
-      if (data[0][j] === '이름') nameCol = j;
-      if (data[0][j] === 'UUID') uuidCol = j;
-    }
+    Logger.log(`UUID 시트 마지막 행: ${lastRow}`);
     
-    if (nameCol === -1 || uuidCol === -1) {
-      Logger.log('❌ UUID 시트에서 이름 또는 UUID 컬럼을 찾을 수 없음');
-      return {};
-    }
-    
-    // 데이터 행에서 이름→UUID 매핑 생성
-    for (let i = 1; i < data.length; i++) {
-      const name = data[i][nameCol];
-      const uuid = data[i][uuidCol];
+    // A열=이름, B열=UUID로 고정
+    for (let i = 1; i <= lastRow; i++) {
+      const name = uuidSheet.getRange(i, 1).getValue(); // A열
+      const uuid = uuidSheet.getRange(i, 2).getValue(); // B열
+      
       if (name && uuid) {
-        map[name.toString().trim()] = uuid.toString().trim();
+        const trimmedName = name.toString().trim();
+        const trimmedUuid = uuid.toString().trim();
+        if (trimmedName && trimmedUuid) {
+          map[trimmedName] = trimmedUuid;
+          Logger.log(`매핑 추가: ${trimmedName} -> ${trimmedUuid.substring(0, 15)}...`);
+        }
       }
     }
     
+    Logger.log(`총 ${Object.keys(map).length}명의 친구 매핑 완료`);
     return map;
   } catch (error) {
     Logger.log(`❌ 친구 목록 로드 중 오류: ${error.message}`);
@@ -270,12 +268,75 @@ function getAccessToken() {
  */
 function testMorningCheck() {
   Logger.log('=== 오전 체크 테스트 ===');
+  Logger.log('평일 체크: ' + isWeekday());
+  Logger.log('오늘 날짜: ' + getKoreanToday());
+  Logger.log('오늘 입력 체크: ' + checkTodayEntry());
+  
   checkMorningEntry();
 }
 
 function testAfternoonCheck() {
   Logger.log('=== 오후 체크 테스트 ===');
+  Logger.log('평일 체크: ' + isWeekday());
+  Logger.log('오늘 날짜: ' + getKoreanToday());
+  Logger.log('오늘 오후 입력 체크: ' + checkTodayAfternoonEntry());
+  
   checkAfternoonEntry();
+}
+
+/**
+ * 카카오 메시지 전송 테스트
+ */
+function testKakaoMessage() {
+  Logger.log('=== 카카오 메시지 테스트 ===');
+  
+  // 친구 목록 확인
+  const friendMap = getFriendMap();
+  Logger.log('친구 목록: ' + JSON.stringify(friendMap));
+  
+  // 오수진 UUID 확인
+  const uuid = friendMap[KAKAO_CONFIG.TARGET_NAME];
+  Logger.log('오수진 UUID: ' + uuid);
+  
+  // 토큰 확인
+  const token = getAccessToken();
+  Logger.log('토큰 존재: ' + (token ? '있음' : '없음'));
+  
+  // 테스트 메시지 전송
+  const testMessage = '📋 테스트 메시지입니다.\n\n카카오톡 연동 테스트 중입니다.';
+  sendKakaoToTarget(testMessage);
+}
+
+/**
+ * 전체 설정 확인 함수
+ */
+function checkAllSettings() {
+  Logger.log('=== 전체 설정 확인 ===');
+  
+  // 1. 시트 확인
+  const ss = SpreadsheetApp.getActive();
+  const dataSheet = ss.getSheetByName(CFG.DATA);
+  const uuidSheet = ss.getSheetByName(KAKAO_CONFIG.TOKEN_SHEET_NAME);
+  
+  Logger.log('데이터 시트 존재: ' + (dataSheet ? '있음' : '없음'));
+  Logger.log('UUID 시트 존재: ' + (uuidSheet ? '있음' : '없음'));
+  
+  if (dataSheet) {
+    Logger.log('데이터 시트 마지막 행: ' + dataSheet.getLastRow());
+  }
+  
+  // 2. 친구 목록 확인
+  const friendMap = getFriendMap();
+  Logger.log('친구 목록 개수: ' + Object.keys(friendMap).length);
+  Logger.log('오수진 UUID: ' + friendMap['오수진']);
+  
+  // 3. 토큰 확인
+  const token = getAccessToken();
+  Logger.log('액세스 토큰: ' + (token ? '설정됨' : '없음'));
+  
+  // 4. 오늘 데이터 확인
+  Logger.log('오늘 입력 있음: ' + checkTodayEntry());
+  Logger.log('오늘 오후 입력 있음: ' + checkTodayAfternoonEntry());
 }
 
 /**
