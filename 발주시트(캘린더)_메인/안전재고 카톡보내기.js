@@ -35,7 +35,15 @@ function sendKakaoMessagesFromSheet() {
     return;
   }
 
-  // 2) 트리거 실행 로그 남기기
+  // 2) 평일(월-금)만 카톡 발송, 주말(토-일)은 중단
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=일요일, 1=월요일, ..., 6=토요일
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    Logger.log('중단: 주말(토요일/일요일)에는 카톡을 발송하지 않습니다');
+    return;
+  }
+
+  // 3) 트리거 실행 로그 남기기
   logRegularTriggerMapped('sendKakaoMessagesFromSheet');
 
   const shMsg = ss.getSheetByName('카톡 내용보낼거');
