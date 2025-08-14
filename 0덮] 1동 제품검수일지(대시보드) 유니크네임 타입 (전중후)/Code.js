@@ -23,7 +23,6 @@ const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오
 const tpl = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 const out = msg => ContentService.createTextOutput(msg); // << 웹앱 응답 함수
 
-
 /**
  * baseName 또는 baseName(n) 형태의 시트 중
  * 숫자 n이 가장 큰(가장 최근 생성된) 시트를 반환
@@ -60,11 +59,7 @@ function generateBaseName(row) {
   const weight = `${weightVal}g`; // g 고정
   const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
   const expiryRaw = data().getRange(row, 8).getValue(); // H열: 유통기한 (Date 객체)
-  const expiry = Utilities.formatDate(
-    new Date(expiryRaw),
-    Session.getScriptTimeZone(),
-    'yy.MM.dd'
-  );
+  const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
   return `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-');
 }
 
@@ -74,7 +69,7 @@ function generateBaseName(row) {
 function findOrCreateSheetName(row) {
   let sheetName = data().getRange(row, 15).getDisplayValue().trim(); // O열에서 uniqueName 읽기
   const baseName = generateBaseName(row);
-  
+
   // O열이 비어있거나 해당 시트명이 존재하지 않으면 fallback 실행
   if (!sheetName || !ss.getSheetByName(sheetName)) {
     const shLatest = getLatestSheet(baseName); // 최근 시트 객체
@@ -84,7 +79,7 @@ function findOrCreateSheetName(row) {
     sheetName = shLatest.getName();
     data().getRange(row, 15).setValue(sheetName); // fallback으로 찾은 시트 이름 O열에 기록
   }
-  
+
   return sheetName;
 }
 
@@ -146,52 +141,74 @@ function onFormSubmit(e) {
 
 /********** 2) 웹앱 진입점 – doGet **********/
 function doGet(e) {
-  console.log(`[doGet] 함수 호출됨 - 파라미터: ${JSON.stringify(e.parameter)}`);
+  // << 동시 실행 방지를 위한 전역 Lock 적용
+  const lock = LockService.getScriptLock();
 
-  const role = e.parameter.role;
-  const row = parseInt(e.parameter.row, 10);
+  try {
+    // << 30초 대기, 안정적인 순차 처리
+    const lockAcquired = lock.tryLock(30000);
+    if (!lockAcquired) {
+      console.log(
+        `[doGet] Lock 획득 실패 - 다른 서명 처리 중, 파라미터: ${JSON.stringify(e.parameter)}`
+      );
+      return out('busy - try again later');
+    }
+    console.log(`[doGet] Lock 획득 성공`);
 
-  console.log(`[doGet] 파라미터 파싱 - role: ${role}, row: ${row}`);
-  //`[doGet] 파라미터 파싱 - role: ${role}, row: ${row}`);
+    // << 처리 시작 시간 기록
+    const startTime = new Date();
 
-  if (!role || !row) {
-    console.log(`[doGet] 파라미터 오류 - role: ${role}, row: ${row}`);
-    //`[doGet] 파라미터 오류 - role: ${role}, row: ${row}`);
-    return out('param err');
+    console.log(`[doGet] 함수 호출됨 - 파라미터: ${JSON.stringify(e.parameter)}`);
+
+    const role = e.parameter.role;
+    const row = parseInt(e.parameter.row, 10);
+
+    console.log(`[doGet] 파라미터 파싱 - role: ${role}, row: ${row}`);
+
+    if (!role || !row) {
+      console.log(`[doGet] 파라미터 오류 - role: ${role}, row: ${row}`);
+      return out('param err');
+    }
+
+    console.log(`[doGet] 유효한 파라미터 확인됨`);
+
+    if (role === 'leader') {
+      console.log(`[doGet] 팀장 서명 처리 시작 - row: ${row}`);
+
+      const leaderName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
+      console.log(`[doGet] 팀장 이름: ${leaderName}`);
+
+      // << 서명 삽입
+      insertSig(row, CFG.COL.CEO_SIG, leaderName);
+      SpreadsheetApp.flush();
+      console.log(`[doGet] 서명 삽입 완료 - row: ${row}`);
+
+      // << PDF 생성 및 시트 삭제 (에러 처리 강화)
+      console.log(`[doGet] PDF 생성 및 시트 삭제 시작 - row: ${row}`);
+      exportPdfAndNotify(row);
+      console.log(`[doGet] PDF 생성 및 시트 삭제 완료 - row: ${row}`);
+
+      // << 처리 완료 시간 계산 및 로깅
+      const endTime = new Date();
+      const processingTime = endTime - startTime;
+      console.log(`[doGet] 모든 처리 완료 - row: ${row}, 처리시간: ${processingTime}ms`);
+      return out('success');
+    } else {
+      console.log(`[doGet] 지원하지 않는 role: ${role}`);
+      return out('invalid role');
+    }
+  } catch (error) {
+    // << 에러 발생 시 상세 로깅
+    console.log(`[doGet] 오류 발생 - row: ${e.parameter.row}, error: ${error.message}`);
+    console.log(`[doGet] 오류 스택: ${error.stack}`);
+    return out(`error: ${error.message}`);
+  } finally {
+    // << Lock 해제 (반드시 실행)
+    if (lock) {
+      lock.releaseLock();
+      console.log(`[doGet] Lock 해제됨`);
+    }
   }
-
-  console.log(`[doGet] 유효한 파라미터 확인됨`);
-  //`[doGet] 유효한 파라미터 확인됨`);
-
-  if (role === 'leader') {
-    console.log(`[doGet] 팀장 서명 처리 시작`);
-    //`[doGet] 팀장 서명 처리 시작`);
-
-    const leaderName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
-    console.log(`[doGet] 팀장 이름: ${leaderName}`);
-    //`[doGet] 팀장 이름: ${leaderName}`);
-
-    insertSig(row, CFG.COL.CEO_SIG, leaderName);
-    SpreadsheetApp.flush();
-    console.log(`[doGet] 서명 삽입 완료`);
-    //`[doGet] 서명 삽입 완료`);
-
-    // PDF 생성 (기존 파일 휴지통 이동 후 새 파일 생성)
-    console.log(`[doGet] PDF 생성 시작`);
-    //`[doGet] PDF 생성 시작`);
-    exportPdfAndNotify(row);
-    console.log(`[doGet] PDF 생성 완료`);
-    //`[doGet] PDF 생성 완료`);
-
-    console.log(`[doGet] 모든 처리 완료`);
-    //`[doGet] 모든 처리 완료`);
-  } else {
-    console.log(`[doGet] 지원하지 않는 role: ${role}`);
-    //`[doGet] 지원하지 않는 role: ${role}`);
-  }
-
-  console.log(`[doGet] 함수 종료`);
-  //`[doGet] 함수 종료`);
 }
 
 /********* 서명 수식 삽입 *********/ // << 서명 수식 삽입 함수
@@ -271,7 +288,7 @@ function pushToBoard(boardId, role, srcRow) {
 /********* PDF 생성 함수 *********/ // << PDF 생성 및 Drive 업로드 (파일 ID 반환)
 function createPdfFromSheet(row, moveOldToTrash = false) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000); // << 동시 실행 방지
+  lock.waitLock(30000); // << 동시 실행 방지, 안정적인 처리
 
   try {
     // ① O열(15)에 저장된 uniqueName 우선, 없으면 baseName으로 폴백하여 최신 시트 찾기
@@ -311,7 +328,6 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
     );
     const fileName = `1동 제품검수일지(대시보드)_${formatted}_${sheetName}.pdf`;
     blob.setName(fileName);
-
 
     const folder = DriveApp.getFolderById(CFG.PDF_FOLDER);
 
@@ -392,31 +408,57 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
   }
 }
 
-
 /********* 서명 완료 후 PDF 생성 및 시트 삭제 *********/ // << 최종 서명 후 처리
 function exportPdfAndNotify(row) {
-  //`[exportPdfAndNotify] 시작 - row: ${row}`);
+  console.log(`[exportPdfAndNotify] 시작 - row: ${row}`);
 
   try {
-    // PDF 생성 (기존 파일 휴지통 이동 후 새 파일 생성)
-    createPdfFromSheet(row, true);
-    //`[exportPdfAndNotify] PDF 생성 완료`);
+    // << 1) PDF 생성 (기존 파일 휴지통 이동 후 새 파일 생성)
+    console.log(`[exportPdfAndNotify] PDF 생성 시작 - row: ${row}`);
+    const pdfFileId = createPdfFromSheet(row, true);
+    console.log(`[exportPdfAndNotify] PDF 생성 완료 - fileId: ${pdfFileId}, row: ${row}`);
 
-    // 시트 삭제
+    // << 2) 시트 삭제 (존재 여부 재확인 후 삭제)
     let sheetName = data().getRange(row, 15).getDisplayValue().trim();
-    //`[exportPdfAndNotify] 삭제할 시트명: ${sheetName}`);
+    console.log(`[exportPdfAndNotify] 삭제할 시트명: ${sheetName}, row: ${row}`);
 
+    if (!sheetName) {
+      console.log(`[exportPdfAndNotify] 시트명이 비어있음 - row: ${row}`);
+      return;
+    }
+
+    // << 시트 존재 여부 재확인 (동시 삭제 방지)
     const sheet = ss.getSheetByName(sheetName);
     if (sheet) {
-      ss.deleteSheet(sheet);
-      //`[exportPdfAndNotify] 시트 삭제 완룈: ${sheetName}`);
+      try {
+        // << 시트가 삭제 가능한지 확인 (최소 1개 시트는 남겨야 함)
+        const allSheets = ss.getSheets();
+        if (allSheets.length <= 1) {
+          console.log(`[exportPdfAndNotify] 시트 삭제 불가 - 마지막 시트임, row: ${row}`);
+          return;
+        }
+
+        ss.deleteSheet(sheet);
+        console.log(`[exportPdfAndNotify] 시트 삭제 완료: ${sheetName}, row: ${row}`);
+
+        // << 삭제 후 O열 초기화 (시트가 삭제되었으므로)
+        data().getRange(row, 15).setValue('');
+        SpreadsheetApp.flush();
+        console.log(`[exportPdfAndNotify] O열 초기화 완료 - row: ${row}`);
+      } catch (deleteError) {
+        console.log(
+          `[exportPdfAndNotify] 시트 삭제 오류: ${deleteError.message}, sheetName: ${sheetName}, row: ${row}`
+        );
+        // << 시트 삭제 실패해도 프로세스 계속 진행
+      }
     } else {
-      //`[exportPdfAndNotify] 삭제할 시트가 없음: ${sheetName}`);
+      console.log(`[exportPdfAndNotify] 삭제할 시트가 이미 없음: ${sheetName}, row: ${row}`);
     }
+
+    console.log(`[exportPdfAndNotify] 완료 - row: ${row}`);
   } catch (error) {
-    //`[exportPdfAndNotify] 오류 발생: ${error.message}`);
+    console.log(`[exportPdfAndNotify] 오류 발생 - row: ${row}, error: ${error.message}`);
+    console.log(`[exportPdfAndNotify] 오류 스택: ${error.stack}`);
     throw error;
   }
-
-  //`[exportPdfAndNotify] 완룈`);
 }
