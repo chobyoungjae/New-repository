@@ -16,6 +16,12 @@ clasp push    # 코드를 Google Apps Script에 업로드
 clasp deploy  # 새 버전으로 배포
 ```
 
+### ⚠️ **중요: 배포 필수 상황**
+**doGet 함수를 수정했을 때는 반드시 새로 배포해야 합니다!**
+- doGet 함수는 웹앱 엔드포인트이므로 배포하지 않으면 변경사항이 적용되지 않음
+- 수정 후 `clasp deploy` 또는 Google Apps Script 에디터에서 "새 배포" 필수
+- 기존 배포된 웹앱 URL은 그대로 사용 가능
+
 ### 테스트 명령어
 
 - Google Apps Script 환경에서는 별도의 테스트 프레임워크가 없습니다
