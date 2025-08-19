@@ -1,0 +1,36 @@
+{
+  "serial": {
+    "port": "/dev/serial0",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout": 1.0,
+    "retry_attempts": 3,
+    "rtscts": false,
+    "dsrdtr": false
+  },
+  "google_sheets": {
+    "spreadsheet_id": "1bf1Rtb5e7MTLtD5Qp3AGbytPMQl4JyZr457sGGc0MVw",
+    "sheet_name": "1라인",
+    "credentials_file": "credentials.json"
+  },
+  "local_backup": {
+    "db_path": "data/measurements.db",
+    "cleanup_days": 30,
+    "backup_interval": 300
+  },
+  "system": {
+    "max_retry": 3,
+    "log_level": "INFO",
+    "log_file": "logs/checkweigher.log",
+    "batch_upload_interval_minutes": 5,
+    "maintenance_hour": 2
+  },
+  "device": {
+    "device_id": "CHECKWEIGHER_001",
+    "location": "생산라인_1",
+    "manufacturer": "인테크",
+    "model": "중량선별기"
+  }
+}

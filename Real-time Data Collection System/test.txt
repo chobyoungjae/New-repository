@@ -1,0 +1,35 @@
+
+  # checkweigher-1line 사용자로 접속
+  ssh checkweigher-1line@192.168.0.193
+  pw : misslee1!
+
+
+
+pwd
+  ls -la
+
+  2단계: checkweigher 폴더로 이동 (없다면)
+
+  cd ~/checkweigher
+
+  3단계: 가상환경 활성화
+
+  source venv/bin/activate
+
+  4단계: 시리얼 포트 확인
+
+  ls -la /dev/serial* /dev/ttyAMA* /dev/ttyS*
+
+  5단계: 기본 시리얼 테스트
+
+  python test_serial_simple.py    << 실행하는거 
+
+  nano test_serial_simple.py   <<변경하는거거
+
+  cat test_serial_simple.py     << 확인하는거 
+
+   python test_serial_debug.py   << 실제 데이터 수신되는지지
+
+  sudo poweroff   끄는거
+
+반복 예약 끄기 가능능
