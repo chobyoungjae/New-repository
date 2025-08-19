@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
@@ -36,8 +35,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-=======
-.clasprc.json 
-.clasprc.json 
-.clasprc.json 
->>>>>>> 7b9a916f94747e39df51372c8533a87123331056
+
+# Credentials and sensitive files
+credentials.json
+.clasprc.json
