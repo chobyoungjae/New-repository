@@ -16,7 +16,7 @@ function moveToBuyCalendar(e) {
   }
 
   var rowData = sheet.getRange(row, 1, 1, 15).getValues()[0];
-  var I열값 = sheetName === '원재료' ? '핑크' : '노랑';
+  var I열값 = sheetName === '원재료' ? '노랑' : '핑크';
 
   var now = new Date();
   var timeString = Utilities.formatDate(now, 'Asia/Seoul', 'yyyy. M. d a h:mm:ss')
