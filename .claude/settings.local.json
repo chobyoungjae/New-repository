@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx @modelcontextprotocol/cli install @modelcontextprotocol/server-sequential-thinking)"
+    ],
+    "deny": []
+  }
+}
