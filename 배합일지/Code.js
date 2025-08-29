@@ -70,6 +70,17 @@ function moveTimestamps() {
     if (maxRows > 0) {
       viewSheet.getRange(`B1:B${maxRows}`).setValues(todayTimestamps.slice(0, maxRows));
       Browser.msgBox(`${maxRows}개의 오늘 날짜 데이터를 뷰 시트로 이동했습니다.`);
+      
+      // ERP 변환 함수 자동 실행
+      SpreadsheetApp.getActiveSpreadsheet().toast('타임스탬프 이동 완료. ERP 변환을 시작합니다...', '진행 중', 3);
+      Utilities.sleep(1000); // 1초 대기
+      
+      try {
+        transformViewToERP(); // DataTransformer.js의 함수 호출
+      } catch (erpError) {
+        console.error('ERP 변환 중 오류:', erpError);
+        Browser.msgBox('ERP 변환 중 오류가 발생했습니다: ' + erpError.message);
+      }
     } else {
       Browser.msgBox('오늘 날짜에 해당하는 데이터가 없습니다.');
     }
