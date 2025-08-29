@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Read(C:\\Users\\두빈\\Desktop\\깃허브\\New-repository\\misslee-sign-dashboard\\signature-dashboard/**)"
+      "Read(C:\\Users\\미쓰리\\Desktop\\깃허브\\New-repository\\misslee-sign-dashboard\\signature-dashboard/**)"
     ],
     "deny": [],
     "ask": []
