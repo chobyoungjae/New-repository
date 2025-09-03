@@ -52,15 +52,18 @@ const CONFIG = {
   // ERP 시트 열 매핑 (1-based index)
   ERP_COLUMNS: {
     TIMESTAMP: 1,    // A열
+    PRODUCT_NUM_B: 2,   // B열 (제품번호)
+    AUTHOR: 3,       // C열 (작성자)
     PERSON: 4,       // D열 (미쓰리)
     WAREHOUSE: 5,    // E열 (불출창고)
-    CODE: 9,         // I열
+    CODE: 9,         // I열 (업체코드)
     DETAILS: 10,     // J열
     TOTAL: 13,       // M열
     ITEM_CODE: 17,   // Q열
     ITEM_NAME: 18,   // R열
     QUANTITY: 20,    // T열
-    PRICE: 23        // W열
+    PRICE: 23,       // W열
+    PRODUCT_NUMBER: 24  // X열 (제품별 번호)
   },
   
   // 고정값
@@ -84,10 +87,11 @@ function transformViewToERP() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const viewSheet = ss.getSheetByName(CONFIG.SHEETS.VIEW);
     const erpSheet = ss.getSheetByName(CONFIG.SHEETS.ERP);
+    const sheet1 = ss.getSheetByName('시트1');
     
     // 시트 존재 확인
-    if (!viewSheet || !erpSheet) {
-      throw new Error('필요한 시트를 찾을 수 없습니다. "뷰"와 "ERP" 시트가 있는지 확인하세요.');
+    if (!viewSheet || !erpSheet || !sheet1) {
+      throw new Error('필요한 시트를 찾을 수 없습니다. "시트1", "뷰", "ERP" 시트가 있는지 확인하세요.');
     }
     
     // 진행 상황 표시
@@ -99,8 +103,11 @@ function transformViewToERP() {
     // 모든 테이블 데이터 수집
     const allTableData = collectAllTableData(viewSheet);
     
+    // 시트1에서 작성자 정보 수집
+    const authorData = collectAuthorData(sheet1);
+    
     // ERP 형식으로 변환
-    const erpData = transformToERPFormat(allTableData);
+    const erpData = transformToERPFormat(allTableData, authorData);
     
     // ERP 시트에 데이터 입력
     if (erpData.length > 0) {
@@ -151,6 +158,69 @@ function collectAllTableData(viewSheet) {
   
   console.log(`총 ${allData.length}개 테이블에서 데이터 수집 완료`);
   return allData;
+}
+
+/**
+ * 시트1에서 작성자 데이터 수집 (B열에서 오늘 날짜와 매칭되는 작성자들)
+ */
+function collectAuthorData(sheet1) {
+  const authorData = [];
+  
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const lastRow = sheet1.getLastRow();
+    if (lastRow === 0) {
+      console.log('시트1에 데이터가 없습니다.');
+      return authorData;
+    }
+    
+    // A열(타임스탬프)와 B열(작성자) 데이터 가져오기
+    const timestampRange = sheet1.getRange('A1:A' + lastRow).getValues();
+    const authorRange = sheet1.getRange('B1:B' + lastRow).getValues();
+    
+    for (let i = 0; i < timestampRange.length; i++) {
+      const cellValue = timestampRange[i][0];
+      const authorValue = authorRange[i][0];
+      
+      if (cellValue && authorValue && (cellValue instanceof Date || typeof cellValue === 'string')) {
+        let cellDate;
+        
+        if (cellValue instanceof Date) {
+          cellDate = new Date(cellValue);
+        } else if (typeof cellValue === 'string') {
+          // 문자열에서 날짜 부분만 추출 (예: "2025.08.28 오후 03:06:15" -> "2025.08.28")
+          const datePart = cellValue.toString().split(' ')[0];
+          if (datePart && datePart.includes('.')) {
+            const [year, month, day] = datePart.split('.');
+            cellDate = new Date(year, month - 1, day);
+          } else {
+            continue;
+          }
+        }
+        
+        if (cellDate && !isNaN(cellDate.getTime())) {
+          cellDate.setHours(0, 0, 0, 0);
+          
+          // 오늘 날짜와 매칭되는 작성자 수집
+          if (cellDate.getTime() === today.getTime()) {
+            authorData.push({
+              timestamp: timestampRange[i][0],
+              author: authorValue
+            });
+          }
+        }
+      }
+    }
+    
+    console.log(`작성자 데이터 수집 완료: ${authorData.length}건`);
+    return authorData;
+    
+  } catch (error) {
+    console.error('작성자 데이터 수집 중 오류:', error);
+    return authorData;
+  }
 }
 
 /**
@@ -220,8 +290,24 @@ function extractTableData(sheet, startRow, startCol, tableNumber) {
 /**
  * 수집된 데이터를 ERP 형식으로 변환
  */
-function transformToERPFormat(allTableData) {
+function transformToERPFormat(allTableData, authorData) {
   const erpRows = [];
+  let productNumber = 1; // 제품별 번호 시작값
+  
+  // 작성자 매핑용 함수 (타임스탬프를 기준으로 작성자 찾기)
+  const findAuthorByTimestamp = (timestamp) => {
+    if (!authorData || authorData.length === 0) return '';
+    
+    // 타임스탬프가 정확히 매칭되는 작성자를 찾기
+    for (let authorInfo of authorData) {
+      if (authorInfo.timestamp === timestamp) {
+        return authorInfo.author;
+      }
+    }
+    
+    // 정확한 매칭이 없으면 첫 번째 작성자 반환 (fallback)
+    return authorData[0] ? authorData[0].author : '';
+  };
   
   allTableData.forEach(tableData => {
     const { header, items } = tableData;
@@ -229,26 +315,37 @@ function transformToERPFormat(allTableData) {
     // 타임스탬프 변환 (YYYYMMDD 형식)
     const formattedTimestamp = formatTimestamp(header.timestamp);
     
+    // 해당 타임스탬프의 작성자 찾기
+    const author = findAuthorByTimestamp(header.timestamp);
+    
     // 각 품목에 대해 행 생성
     items.forEach(item => {
-      const row = new Array(23).fill(''); // W열(23)까지
+      const row = new Array(24).fill(''); // X열(24)까지
       
       // 헤더 정보 (반복)
-      row[CONFIG.ERP_COLUMNS.TIMESTAMP - 1] = formattedTimestamp;
+      row[CONFIG.ERP_COLUMNS.TIMESTAMP - 1] = formattedTimestamp;           // A열: 타임스탬프
+      row[CONFIG.ERP_COLUMNS.PRODUCT_NUM_B - 1] = productNumber;            // B열: 제품번호
+      row[CONFIG.ERP_COLUMNS.AUTHOR - 1] = author;                         // C열: 작성자
       row[CONFIG.ERP_COLUMNS.PERSON - 1] = CONFIG.FIXED_VALUES.PERSON;      // D열: 미쓰리
       row[CONFIG.ERP_COLUMNS.WAREHOUSE - 1] = CONFIG.FIXED_VALUES.WAREHOUSE; // E열: 불출창고
-      row[CONFIG.ERP_COLUMNS.CODE - 1] = header.code;
-      row[CONFIG.ERP_COLUMNS.DETAILS - 1] = header.details;
-      row[CONFIG.ERP_COLUMNS.TOTAL - 1] = header.total;
+      row[CONFIG.ERP_COLUMNS.CODE - 1] = header.code;                       // I열: 업체코드
+      row[CONFIG.ERP_COLUMNS.DETAILS - 1] = header.details;                 // J열: 세부정보
+      row[CONFIG.ERP_COLUMNS.TOTAL - 1] = header.total / 1000;                     // M열: 총액
       
       // 품목 정보
-      row[CONFIG.ERP_COLUMNS.ITEM_CODE - 1] = item.code;
-      row[CONFIG.ERP_COLUMNS.ITEM_NAME - 1] = item.name;
-      row[CONFIG.ERP_COLUMNS.QUANTITY - 1] = item.quantity;
-      row[CONFIG.ERP_COLUMNS.PRICE - 1] = item.price;
+      row[CONFIG.ERP_COLUMNS.ITEM_CODE - 1] = item.code;                   // Q열: 품목코드
+      row[CONFIG.ERP_COLUMNS.ITEM_NAME - 1] = item.name;                   // R열: 품목명
+      row[CONFIG.ERP_COLUMNS.QUANTITY - 1] = item.quantity / 1000;         // T열: 수량 (1000으로 나누기)
+      row[CONFIG.ERP_COLUMNS.PRICE - 1] = item.price;                      // W열: 단가
+      
+      // 제품별 번호 (X열) - 각 테이블(제품)별로 동일한 번호
+      row[CONFIG.ERP_COLUMNS.PRODUCT_NUMBER - 1] = productNumber;
       
       erpRows.push(row);
     });
+    
+    // 다음 제품으로 번호 증가
+    productNumber++;
   });
   
   return erpRows;
