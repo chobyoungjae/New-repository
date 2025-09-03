@@ -70,28 +70,18 @@ function moveTimestamps() {
     const maxRows = Math.min(todayTimestamps.length, 11);
     if (maxRows > 0) {
       viewSheet.getRange(`B1:B${maxRows}`).setValues(todayTimestamps.slice(0, maxRows));
-      Browser.msgBox(`${maxRows}개의 오늘 날짜 데이터를 뷰 시트로 이동했습니다.`);
-
-      // ERP 변환 함수 자동 실행
-      SpreadsheetApp.getActiveSpreadsheet().toast(
-        '타임스탬프 이동 완료. ERP 변환을 시작합니다...',
-        '진행 중',
-        3
-      );
-      Utilities.sleep(1000); // 1초 대기
 
       try {
-        transformViewToERP(); // DataTransformer.js의 함수 호출
+        const result = transformViewToERP(); // DataTransformer.js의 함수 호출
         
-        // ERP 변환 완료 후 안내 메시지 표시
-        Utilities.sleep(1000); // 1초 대기
-        
-        SpreadsheetApp.getActiveSpreadsheet().toast(
-          'ERP 데이터 준비 완료! 이제 엑셀에서 VBA 함수를 실행하세요.', 
-          '다음 단계 안내', 
-          5
-        );
-        
+        // 통합된 완료 메시지
+        if (result && result.success) {
+          Browser.msgBox(`✅ 완료!\n\n${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
+        } else if (result && !result.success) {
+          Browser.msgBox(result.message || '변환 중 오류가 발생했습니다.');
+        } else {
+          Browser.msgBox(`✅ 완료!\n\n${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
+        }
         
       } catch (erpError) {
         console.error('ERP 변환 중 오류:', erpError);

@@ -59,6 +59,7 @@ const CONFIG = {
     CODE: 9,         // I열 (업체코드)
     DETAILS: 10,     // J열
     TOTAL: 13,       // M열
+    SHEET1_J_DATA: 16,  // P열 (시트1 J열 데이터)
     ITEM_CODE: 17,   // Q열
     ITEM_NAME: 18,   // R열
     QUANTITY: 20,    // T열
@@ -116,12 +117,12 @@ function transformViewToERP() {
       const endTime = new Date();
       const processingTime = ((endTime - startTime) / 1000).toFixed(2);
       
-      // 완료 메시지
-      const message = `✅ 변환 완료!\n\n처리된 데이터: ${erpData.length}행\n처리 시간: ${processingTime}초`;
-      SpreadsheetApp.getUi().alert('성공', message, SpreadsheetApp.getUi().ButtonSet.OK);
       console.log(`변환 완료: ${erpData.length}행 처리, ${processingTime}초 소요`);
+      
+      // 변환 완료 - Code.js에서 통합 메시지로 처리하므로 여기서는 알람 제거
+      return { success: true, dataCount: erpData.length, processingTime };
     } else {
-      SpreadsheetApp.getUi().alert('알림', '변환할 데이터가 없습니다.', SpreadsheetApp.getUi().ButtonSet.OK);
+      return { success: false, message: '변환할 데이터가 없습니다.' };
     }
     
   } catch (error) {
@@ -176,13 +177,15 @@ function collectAuthorData(sheet1) {
       return authorData;
     }
     
-    // A열(타임스탬프)와 B열(작성자) 데이터 가져오기
+    // A열(타임스탬프), B열(작성자), J열 데이터 가져오기
     const timestampRange = sheet1.getRange('A1:A' + lastRow).getValues();
     const authorRange = sheet1.getRange('B1:B' + lastRow).getValues();
+    const jColumnRange = sheet1.getRange('J1:J' + lastRow).getValues();
     
     for (let i = 0; i < timestampRange.length; i++) {
       const cellValue = timestampRange[i][0];
       const authorValue = authorRange[i][0];
+      const jColumnValue = jColumnRange[i][0];
       
       if (cellValue && authorValue && (cellValue instanceof Date || typeof cellValue === 'string')) {
         let cellDate;
@@ -203,11 +206,12 @@ function collectAuthorData(sheet1) {
         if (cellDate && !isNaN(cellDate.getTime())) {
           cellDate.setHours(0, 0, 0, 0);
           
-          // 오늘 날짜와 매칭되는 작성자 수집
+          // 오늘 날짜와 매칭되는 작성자와 J열 데이터 수집
           if (cellDate.getTime() === today.getTime()) {
             authorData.push({
               timestamp: timestampRange[i][0],
-              author: authorValue
+              author: authorValue,
+              jColumnData: jColumnValue
             });
           }
         }
@@ -294,29 +298,33 @@ function transformToERPFormat(allTableData, authorData) {
   const erpRows = [];
   let productNumber = 1; // 제품별 번호 시작값
   
-  // 작성자 매핑용 함수 (타임스탬프를 기준으로 작성자 찾기)
-  const findAuthorByTimestamp = (timestamp) => {
-    if (!authorData || authorData.length === 0) return '';
+  // 작성자와 J열 매핑용 함수 (인덱스 기준으로 순서대로 매칭)
+  const findAuthorAndJDataByIndex = (tableIndex) => {
+    if (!authorData || authorData.length === 0) return { author: '', jData: '' };
     
-    // 타임스탬프가 정확히 매칭되는 작성자를 찾기
-    for (let authorInfo of authorData) {
-      if (authorInfo.timestamp === timestamp) {
-        return authorInfo.author;
-      }
+    // 테이블 순서(0부터 시작)에 맞는 작성자 데이터 반환
+    if (tableIndex < authorData.length) {
+      return {
+        author: authorData[tableIndex].author || '',
+        jData: authorData[tableIndex].jColumnData || ''
+      };
     }
     
-    // 정확한 매칭이 없으면 첫 번째 작성자 반환 (fallback)
-    return authorData[0] ? authorData[0].author : '';
+    // 범위를 벗어나면 첫 번째 데이터 반환 (fallback)
+    return {
+      author: authorData[0] ? authorData[0].author : '',
+      jData: authorData[0] ? (authorData[0].jColumnData || '') : ''
+    };
   };
   
-  allTableData.forEach(tableData => {
+  allTableData.forEach((tableData, tableIndex) => {
     const { header, items } = tableData;
     
     // 타임스탬프 변환 (YYYYMMDD 형식)
     const formattedTimestamp = formatTimestamp(header.timestamp);
     
-    // 해당 타임스탬프의 작성자 찾기
-    const author = findAuthorByTimestamp(header.timestamp);
+    // 테이블 순서에 따른 작성자와 J열 데이터 찾기 (묶음번호처럼 순서대로)
+    const { author, jData } = findAuthorAndJDataByIndex(tableIndex);
     
     // 각 품목에 대해 행 생성
     items.forEach(item => {
@@ -331,6 +339,7 @@ function transformToERPFormat(allTableData, authorData) {
       row[CONFIG.ERP_COLUMNS.CODE - 1] = header.code;                       // I열: 업체코드
       row[CONFIG.ERP_COLUMNS.DETAILS - 1] = header.details;                 // J열: 세부정보
       row[CONFIG.ERP_COLUMNS.TOTAL - 1] = header.total / 1000;                     // M열: 총액
+      row[CONFIG.ERP_COLUMNS.SHEET1_J_DATA - 1] = jData;                    // P열: 시트1 J열 데이터
       
       // 품목 정보
       row[CONFIG.ERP_COLUMNS.ITEM_CODE - 1] = item.code;                   // Q열: 품목코드
