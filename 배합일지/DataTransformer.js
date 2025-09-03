@@ -59,6 +59,7 @@ const CONFIG = {
     CODE: 9,         // I열 (업체코드)
     DETAILS: 10,     // J열
     TOTAL: 13,       // M열
+    BUNDLE_NUMBER: 14,  // N열 (묶음번호 - 시트1 C열)
     SHEET1_J_DATA: 16,  // P열 (시트1 J열 데이터)
     ITEM_CODE: 17,   // Q열
     ITEM_NAME: 18,   // R열
@@ -177,14 +178,16 @@ function collectAuthorData(sheet1) {
       return authorData;
     }
     
-    // A열(타임스탬프), B열(작성자), J열 데이터 가져오기
+    // A열(타임스탬프), B열(작성자), C열(묶음번호), J열 데이터 가져오기
     const timestampRange = sheet1.getRange('A1:A' + lastRow).getValues();
     const authorRange = sheet1.getRange('B1:B' + lastRow).getValues();
+    const cColumnRange = sheet1.getRange('C1:C' + lastRow).getValues();
     const jColumnRange = sheet1.getRange('J1:J' + lastRow).getValues();
     
     for (let i = 0; i < timestampRange.length; i++) {
       const cellValue = timestampRange[i][0];
       const authorValue = authorRange[i][0];
+      const cColumnValue = cColumnRange[i][0];
       const jColumnValue = jColumnRange[i][0];
       
       if (cellValue && authorValue && (cellValue instanceof Date || typeof cellValue === 'string')) {
@@ -206,11 +209,12 @@ function collectAuthorData(sheet1) {
         if (cellDate && !isNaN(cellDate.getTime())) {
           cellDate.setHours(0, 0, 0, 0);
           
-          // 오늘 날짜와 매칭되는 작성자와 J열 데이터 수집
+          // 오늘 날짜와 매칭되는 작성자, C열(묶음번호), J열 데이터 수집
           if (cellDate.getTime() === today.getTime()) {
             authorData.push({
               timestamp: timestampRange[i][0],
               author: authorValue,
+              bundleNumber: cColumnValue,
               jColumnData: jColumnValue
             });
           }
@@ -298,14 +302,15 @@ function transformToERPFormat(allTableData, authorData) {
   const erpRows = [];
   let productNumber = 1; // 제품별 번호 시작값
   
-  // 작성자와 J열 매핑용 함수 (인덱스 기준으로 순서대로 매칭)
-  const findAuthorAndJDataByIndex = (tableIndex) => {
-    if (!authorData || authorData.length === 0) return { author: '', jData: '' };
+  // 작성자, 묶음번호, J열 매핑용 함수 (인덱스 기준으로 순서대로 매칭)
+  const findAuthorBundleAndJDataByIndex = (tableIndex) => {
+    if (!authorData || authorData.length === 0) return { author: '', bundleNumber: '', jData: '' };
     
     // 테이블 순서(0부터 시작)에 맞는 작성자 데이터 반환
     if (tableIndex < authorData.length) {
       return {
         author: authorData[tableIndex].author || '',
+        bundleNumber: authorData[tableIndex].bundleNumber || '',
         jData: authorData[tableIndex].jColumnData || ''
       };
     }
@@ -313,6 +318,7 @@ function transformToERPFormat(allTableData, authorData) {
     // 범위를 벗어나면 첫 번째 데이터 반환 (fallback)
     return {
       author: authorData[0] ? authorData[0].author : '',
+      bundleNumber: authorData[0] ? (authorData[0].bundleNumber || '') : '',
       jData: authorData[0] ? (authorData[0].jColumnData || '') : ''
     };
   };
@@ -323,8 +329,8 @@ function transformToERPFormat(allTableData, authorData) {
     // 타임스탬프 변환 (YYYYMMDD 형식)
     const formattedTimestamp = formatTimestamp(header.timestamp);
     
-    // 테이블 순서에 따른 작성자와 J열 데이터 찾기 (묶음번호처럼 순서대로)
-    const { author, jData } = findAuthorAndJDataByIndex(tableIndex);
+    // 테이블 순서에 따른 작성자, 묶음번호, J열 데이터 찾기 (순서대로)
+    const { author, bundleNumber, jData } = findAuthorBundleAndJDataByIndex(tableIndex);
     
     // 각 품목에 대해 행 생성
     items.forEach(item => {
@@ -339,6 +345,7 @@ function transformToERPFormat(allTableData, authorData) {
       row[CONFIG.ERP_COLUMNS.CODE - 1] = header.code;                       // I열: 업체코드
       row[CONFIG.ERP_COLUMNS.DETAILS - 1] = header.details;                 // J열: 세부정보
       row[CONFIG.ERP_COLUMNS.TOTAL - 1] = header.total / 1000;                     // M열: 총액
+      row[CONFIG.ERP_COLUMNS.BUNDLE_NUMBER - 1] = bundleNumber;             // N열: 묶음번호 (시트1 C열)
       row[CONFIG.ERP_COLUMNS.SHEET1_J_DATA - 1] = jData;                    // P열: 시트1 J열 데이터
       
       // 품목 정보
