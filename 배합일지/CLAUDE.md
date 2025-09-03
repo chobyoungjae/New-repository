@@ -1,55 +1,113 @@
 # CLAUDE.md
 
-이 파일은 Claude Code (claude.ai/code)가 이 저장소에서 작업할 때 필요한 가이드를 제공합니다.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 개요
 
-배합일지 - 생산 배합 데이터를 관리하고 뷰 기능을 제공하는 Google Apps Script 프로젝트입니다. 이 스크립트는 메인 시트에서 오늘 날짜의 타임스탬프 데이터를 뷰 시트로 이동시켜 쉽게 확인할 수 있도록 합니다.
+배합일지 - 완전 자동화된 생산 배합 ERP 연동 시스템입니다. Google Sheets 데이터를 ERP 형식으로 변환하고, 웹훅을 통해 로컬 VBA 스크립트를 트리거하여 이카운트 ERP 시스템에 자동으로 업로드하는 통합 워크플로우를 제공합니다.
 
-## 구조
+## 시스템 아키텍처
+
+### 통합 자동화 워크플로우
+```
+Google Sheets (클라우드)
+    ↓ 1. 데이터 필터링/변환
+뷰 시트 → ERP 시트
+    ↓ 2. 웹훅 트리거
+Python 서버 (localhost:5000)
+    ↓ 3. VBA 스크립트 실행
+Excel 자동화 → 이카운트 ERP
+```
+
+### 구성 요소
+
+#### Google Apps Script (클라우드)
+- **Code.js**: 메인 워크플로우 제어 및 웹훅 발송
+- **DataTransformer.js**: 뷰 시트 8개 테이블을 ERP 형식으로 변환
+
+#### Python 웹훅 서버 (로컬)
+- **webhook_server.py**: Flask 서버로 웹훅 수신 및 VBA 실행 관리
+- 포트 5000에서 실행, 로깅 및 상태 모니터링 기능
+
+#### VBA 자동화 (로컬)
+- **ICountAutomation_*.vba**: Excel VBA를 통한 이카운트 ERP 시스템 연동
+- **trigger_icount_upload.vbs**: Python에서 VBA 실행을 위한 트리거 스크립트
 
 ### 시트 구성
 - **시트1**: 타임스탬프와 생산 기록이 저장된 메인 데이터 시트
-- **뷰**: 필터링된 데이터(오늘 날짜 기록만)를 표시하는 뷰 시트
+- **뷰**: 8개 테이블(2x4 격자)로 구성된 필터링된 데이터 뷰
+- **ERP**: 행 단위로 변환된 최종 ERP 업로드용 데이터
 
-### 핵심 기능
+## 핵심 기능
 
-#### `moveTimestamps()`
-주요 기능:
-1. 시트1의 A열에서 모든 타임스탬프를 가져옴
-2. 오늘 날짜와 일치하는 기록을 필터링
-3. 최대 11개의 일치 기록을 뷰 시트의 B열로 이동
-4. Date 객체와 문자열 형식(예: "2025.08.28 오후 03:06:15") 모두 처리
+### 1. 타임스탬프 필터링 (`moveTimestamps()`)
+- 시트1 A열에서 오늘 날짜 타임스탬프 추출
+- 한국식 날짜 형식 "YYYY.MM.DD" 및 Date 객체 지원
+- 뷰 시트 B1:B11에 최대 11개 기록 이동
 
-#### `onOpen()`
-"생산뷰" 커스텀 메뉴를 생성하여 타임스탬프 이동 기능을 실행할 수 있도록 함
+### 2. 데이터 변환 (`transformViewToERP()`)
+- 뷰 시트 8개 테이블(2x4 격자)을 ERP 행 형식으로 변환
+- 각 테이블별 헤더 정보(타임스탬프, 코드, 세부정보, 총액) 반복 입력
+- 품목 데이터(코드, 명, 수량, 단가)를 연속적으로 배치
+- YYYYMMDD 형식으로 타임스탬프 변환
 
-### 날짜 처리 패턴
-- 한국식 날짜 형식 문자열(YYYY.MM.DD)을 Date 객체로 변환
-- 정확한 비교를 위해 모든 날짜를 자정(00:00:00)으로 정규화
-- 네이티브 Date 객체와 문자열 타임스탬프 모두 지원
+### 3. 웹훅 연동 (`sendWebhookTrigger()`)
+- localhost:5000 Python 서버로 웹훅 발송
+- VBA 스크립트 자동 실행 트리거
+- 연결 실패 시 사용자 안내 및 대체 플로우
 
-## 개발 노트
+### 4. REST API (`doGet()`)
+- VBA에서 ERP 데이터를 가져올 수 있는 API 제공
+- 액션: `get_erp_data`, `health_check`
+- 이카운트 형식으로 데이터 변환 및 반환
 
-### Google Apps Script 설정
+## 실행 워크플로우
+
+### 자동화 체인
+1. **사용자 액션**: "생산뷰" → "타임스템프 이동" 클릭
+2. **Apps Script**: `moveTimestamps()` → `transformViewToERP()` → `sendWebhookTrigger()`
+3. **Python 서버**: 웹훅 수신 → VBA 스크립트 실행
+4. **VBA**: Google Sheets API 호출 → Excel 업데이트 → 이카운트 업로드
+5. **결과**: 완전 자동화된 ERP 데이터 연동
+
+### 로컬 서버 실행
+```bash
+cd "Y:\4000_생산(조병재)\2025년\ERP 생산등록2 자동"
+python webhook_server.py
+```
+
+## 데이터 매핑
+
+### 뷰 시트 테이블 위치 (8개)
+- 테이블 1-4: 행 12-37 (A12, G12, M12, S12)
+- 테이블 5-8: 행 39-64 (A39, G39, M39, S39)
+
+### ERP 시트 열 매핑
+- A열: 타임스탬프 (YYYYMMDD)
+- D열: 담당자 (미쓰리)
+- E열: 창고 (불출창고)
+- I열: 업체코드
+- J열: 세부정보
+- M열: 총액
+- Q열: 품목코드
+- R열: 품목명
+- T열: 수량
+- W열: 단가
+
+## 개발 설정
+
+### Google Apps Script
 - 시간대: Asia/Seoul
 - 런타임: V8
 - 예외 로깅: STACKDRIVER
 
-### 데이터 형식
-- 타임스탬프 열: 시트1의 A열
-- 출력 열: 뷰 시트의 B열 (B1:B11 범위)
-- 날짜 문자열 형식: "YYYY.MM.DD 오전/오후 HH:MM:SS"
+### Python 서버 요구사항
+- Flask 프레임워크
+- UTF-8 로깅 (webhook.log)
+- 5분 VBA 실행 타임아웃
+- Windows CP949 인코딩 지원
 
-### 주요 고려사항
-- 뷰 시트에 최대 11개 행 표시
-- 사용자 피드백을 위해 Browser.msgBox() 사용
-- 날짜 비교 디버깅을 위한 콘솔 로깅
-- try-catch 블록을 통한 오류 처리
-
-## 배포
-
-Google Sheets 문서에 바인딩된 Google Apps Script입니다. 사용 방법:
-1. Google Sheets 문서 열기
-2. 시트가 열린 후 나타나는 "생산뷰" 메뉴 사용
-3. "타임스템프 이동"을 클릭하여 오늘 데이터를 뷰 시트로 이동
+### VBA 설정 요구사항
+- Excel 매크로 보안 설정 허용
+- Google Apps Script ID 구성 필요
+- Y:\ 드라이브 네트워크 경로 접근 권한
