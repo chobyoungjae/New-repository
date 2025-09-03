@@ -250,6 +250,7 @@ function getERPDataForVBA() {
       code: row[8] || '',                         // I열: 업체코드
       details: row[9] || '',                      // J열: 세부정보
       total: row[12] || 0,                        // M열: 총액
+      bundleNumber: row[13] || '',                // N열: 묶음번호 (시트1 C열)
       itemCode: row[16] || '',                    // Q열: 품목코드
       itemName: row[17] || '',                    // R열: 품목명
       quantity: row[19] || 0,                     // T열: 수량
