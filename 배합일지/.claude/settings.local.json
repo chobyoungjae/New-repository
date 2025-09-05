@@ -4,7 +4,11 @@
       "Read(C:\\Users\\미쓰리\\Desktop\\깃허브\\New-repository\\misslee-sign-dashboard\\signature-dashboard/**)",
       "Bash(del:*)",
       "mcp__smithery-sequential-thinking__sequentialthinking",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Read(/C:\\Users\\미쓰리\\Desktop\\깃허브\\New-repository\\배합일지/**)",
+      "Read(/C:\\Users\\미쓰리\\Desktop\\깃허브\\New-repository\\배합일지/**)"
     ],
     "deny": [],
     "ask": []
