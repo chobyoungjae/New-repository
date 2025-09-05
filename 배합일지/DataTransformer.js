@@ -451,7 +451,12 @@ function applyERPFormatting(erpSheet, rowCount) {
   
   numberColumns.forEach(col => {
     const range = erpSheet.getRange(2, col, rowCount, 1);
-    range.setNumberFormat('#,##0');
+    // M열(총액)과 T열(수량)은 소수점 3자리까지 표시, 단가는 정수로 표시
+    if (col === CONFIG.ERP_COLUMNS.TOTAL || col === CONFIG.ERP_COLUMNS.QUANTITY) {
+      range.setNumberFormat('#,##0.000');
+    } else {
+      range.setNumberFormat('#,##0');
+    }
   });
   
   // 타임스탬프 열 중앙 정렬
