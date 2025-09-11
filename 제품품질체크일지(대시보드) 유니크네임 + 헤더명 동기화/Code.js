@@ -117,7 +117,7 @@ function onFormSubmit(e) {
   const weight = weightVal ? `${weightVal}g` : '';
   
   // 타임스탬프에서 날짜 추출
-  const timestamp = data().getRange(row, 1).getValue();
+  const timestamp = data().getRange(row, 22).getValue();
   const expiry = Utilities.formatDate(new Date(timestamp), Session.getScriptTimeZone(), 'yy.MM.dd');
 
   if (line && product && weight && lot) {
