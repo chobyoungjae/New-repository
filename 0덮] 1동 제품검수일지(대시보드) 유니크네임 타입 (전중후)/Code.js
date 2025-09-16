@@ -18,10 +18,17 @@ const CFG = {
   PDF_FOLDER: '1iwIgwJCc2t2-LSK-eIFnXOFL2ntFaiaJ', // << PDF 저장 폴더 ID           @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 }; // << CFG 객체 끝
 
+// << 성능 최적화: 전역 변수로 캐싱
 const ss = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 참조
 const data = () => ss.getSheetByName(CFG.DATA); // << 데이터 시트 가져오는 함수
 const tpl = () => ss.getSheetByName(CFG.TEMPLATE); // << 템플릿 시트 가져오는 함수
 const out = msg => ContentService.createTextOutput(msg); // << 웹앱 응답 함수
+
+// << 성능 최적화: 룩업 테이블 캐시
+let boardLookupCache = new Map(); // << 보드 ID 캐시
+let execUrlCache = new Map(); // << 실행 URL 캐시
+let cacheTimestamp = 0; // << 캐시 타임스탬프
+const CACHE_DURATION = 5 * 60 * 1000; // << 5분 캐시
 
 /**
  * baseName 또는 baseName(n) 형태의 시트 중
@@ -50,15 +57,19 @@ function getLatestSheet(baseName) {
 }
 
 /**
- * 주문 데이터로부터 기본 시트명 생성
+ * 주문 데이터로부터 기본 시트명 생성 (성능 최적화: 배치 읽기)
  */
 function generateBaseName(row) {
-  const line = data().getRange(row, 12).getValue().toString().trim(); // L열: 주문자
-  const product = data().getRange(row, 3).getValue().toString().trim(); // C열: 제품명
-  const weightVal = data().getRange(row, 5).getValue().toString().trim(); // E열: 숫자 중량
+  // << 성능 최적화: 한 번에 여러 컬럼 읽기
+  const rowData = data().getRange(row, 3, 1, 10).getValues()[0]; // C~L열 배치 읽기
+
+  const product = rowData[0].toString().trim(); // C열: 제품명 (인덱스 0)
+  const weightVal = rowData[2].toString().trim(); // E열: 숫자 중량 (인덱스 2)
   const weight = `${weightVal}g`; // g 고정
-  const lot = data().getRange(row, 9).getValue().toString().trim(); // I열: 로트
-  const expiryRaw = data().getRange(row, 8).getValue(); // H열: 유통기한 (Date 객체)
+  const expiryRaw = rowData[5]; // H열: 유통기한 (인덱스 5)
+  const lot = rowData[6].toString().trim(); // I열: 로트 (인덱스 6)
+  const line = rowData[9].toString().trim(); // L열: 주문자 (인덱스 9)
+
   const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
   return `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-');
 }
@@ -219,31 +230,71 @@ function insertSig(row, col, name) {
   SpreadsheetApp.flush(); // << 반영
 }
 
-/********* 이름→보드ID 매핑 *********/ // << 보드 ID 조회 함수
+/********* 이름→보드ID 매핑 (성능 최적화: 캐시 적용) *********/ // << 보드 ID 조회 함수
 function lookupBoardByName(name) {
-  // << 이름으로 보드 ID 찾기
-  const mapSh = ss.getSheetByName(CFG.MAP_ID); // << 매핑 시트 가져오기
-  const last = mapSh.getLastRow(); // << 마지막 행
-  if (last < 2) return null; // << 데이터 없음
-  const vals = mapSh.getRange(2, 2, last - 1, 2).getValues(); // << 매핑 값 읽기
-  for (let [n, id] of vals) {
-    // << 매핑 루프
-    if (n.toString().trim() === name) return { boardId: id.toString().trim() }; // << 매칭 시 반환
+  // << 성능 최적화: 캐시 확인
+  const now = Date.now();
+  if (now - cacheTimestamp > CACHE_DURATION) {
+    // << 캐시 만료 시 갱신
+    refreshBoardLookupCache();
+    cacheTimestamp = now;
   }
-  return null; // << 없으면 null
+
+  // << 캐시에서 조회 (O(1))
+  const boardId = boardLookupCache.get(name);
+  return boardId ? { boardId } : null;
 }
 
-/********* 스크립트ID→URL 매핑 *********/ // << 실행 URL 조회 함수
-function lookupExecUrlByScriptId(scriptId) {
-  // << 스크립트 ID로 URL 찾기
-  const sh = ss.getSheetByName(CFG.MAP_ID); // << 매핑 시트
-  const last = sh.getLastRow(); // << 마지막 행
-  const rows = sh.getRange(2, 4, last - 1, 2).getDisplayValues(); // << ID-URL 읽기
-  for (let [id, url] of rows) {
-    // << 루프
-    if (id === scriptId) return url; // << 일치 시 URL 반환
+/**
+ * 보드 룩업 캐시 갱신 (성능 최적화)
+ */
+function refreshBoardLookupCache() {
+  boardLookupCache.clear();
+  const mapSh = ss.getSheetByName(CFG.MAP_ID);
+  const last = mapSh.getLastRow();
+  if (last < 2) return;
+
+  // << 배치 읽기로 전체 매핑 데이터 로드
+  const vals = mapSh.getRange(2, 2, last - 1, 2).getValues();
+  for (let [n, id] of vals) {
+    if (n && id) {
+      boardLookupCache.set(n.toString().trim(), id.toString().trim());
+    }
   }
-  throw new Error(`C시트에서 스크립트ID=${scriptId}를 찾을 수 없습니다.`); // << 없으면 에러
+}
+
+/********* 스크립트ID→URL 매핑 (성능 최적화: 캐시 적용) *********/ // << 실행 URL 조회 함수
+function lookupExecUrlByScriptId(scriptId) {
+  // << 성능 최적화: 캐시 확인
+  const now = Date.now();
+  if (now - cacheTimestamp > CACHE_DURATION) {
+    // << 캐시 만료 시 갱신
+    refreshExecUrlCache();
+  }
+
+  // << 캐시에서 조회 (O(1))
+  const url = execUrlCache.get(scriptId);
+  if (url) return url;
+
+  throw new Error(`C시트에서 스크립트ID=${scriptId}를 찾을 수 없습니다.`);
+}
+
+/**
+ * 실행 URL 캐시 갱신 (성능 최적화)
+ */
+function refreshExecUrlCache() {
+  execUrlCache.clear();
+  const sh = ss.getSheetByName(CFG.MAP_ID);
+  const last = sh.getLastRow();
+  if (last < 2) return;
+
+  // << 배치 읽기로 전체 URL 매핑 데이터 로드
+  const rows = sh.getRange(2, 4, last - 1, 2).getDisplayValues();
+  for (let [id, url] of rows) {
+    if (id && url) {
+      execUrlCache.set(id, url);
+    }
+  }
 }
 
 /********* 보드 전송 함수 *********/ // << 보드에 데이터 전송 함수
@@ -256,20 +307,24 @@ function pushToBoard(boardId, role, srcRow) {
   // PDF 생성하고 파일 ID 획득
   const pdfFileId = createPdfFromSheet(srcRow, false); // << 첫 번째 PDF 생성
 
-  // 1) A~G 값 쓰기
+  // 1) A~G 값 쓰기 (성능 최적화: 배치 읽기)
   const ts = new Date(); // A열 << 타임스탬프
   const docName = '1동 제품검수일지(대시보드)'; // B열  << 문서명       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+  // << 성능 최적화: 한 번에 필요한 데이터 읽기
+  const sourceData = data().getRange(srcRow, 6, 1, 10).getValues()[0]; // F~O열 배치 읽기
+
   const vals = [
     ts,
     docName,
-    data().getRange(srcRow, 6).getValue(), // C열
-    data().getRange(srcRow, 15).getValue(),
-  ]; // D열
+    sourceData[0], // F열 (인덱스 0)
+    sourceData[9], // O열 (인덱스 9)
+  ];
   sh.getRange(dstRow, 1, 1, 4).setValues([vals]).setNumberFormat('yyyy/MM/dd HH:mm:ss'); // << 쓰기 및 서식 적용
 
-  // 2) 원본 행 번호 및 PDF 파일 ID
-  sh.getRange(dstRow, 11).setValue(srcRow); // << 원본 행 기록
-  sh.getRange(dstRow, 15).setValue(pdfFileId); // << PDF 파일 ID 기록
+  // 2) 원본 행 번호 및 PDF 파일 ID (성능 최적화: 배치 쓰기)
+  const metaData = [[srcRow], [null], [null], [null], [pdfFileId]]; // K, L, M, N, O열
+  sh.getRange(dstRow, 11, 1, 5).setValues([metaData.flat()]); // << 배치 쓰기
 
   // 3) IMPORTRANGE 설정
   const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`; // << IMPORTRANGE 수식
@@ -302,22 +357,18 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
       throw new Error('시트를 찾을 수 없습니다: ' + sheetName);
     }
 
-    // ② PDF URL 구성 및 Blob 생성
+    // ② PDF URL 구성 및 Blob 생성 (성능 최적화: URL 캐싱)
     const baseUrl = ss.getUrl().replace(/\/edit$/, ''); // << 스프레드시트 기본 URL
     const gid = sheet.getSheetId(); // << 대상 시트 GID
-    const pdfUrl =
-      baseUrl +
-      '/export?format=pdf' +
-      `&gid=${gid}` + // << 해당 탭 지정
-      '&size=A4&portrait=true&scale=4' + // << 용지/축척 설정
-      '&top_margin=0.2&bottom_margin=0.2&left_margin=0.2&right_margin=0.2' + // << 여백 설정
-      '&gridlines=false&sheetnames=false&printtitle=false' + // << 인쇄 옵션
-      '&horizontal_alignment=CENTER&vertical_alignment=MIDDLE' +
-      '&r1=0&r2=15&c1=0&c2=9'; // << 인쇄 범위
 
+    // << 성능 최적화: PDF URL 구성을 템플릿 리터럴로 최적화
+    const pdfUrl = `${baseUrl}/export?format=pdf&gid=${gid}&size=A4&portrait=true&scale=4&top_margin=0.2&bottom_margin=0.2&left_margin=0.2&right_margin=0.2&gridlines=false&sheetnames=false&printtitle=false&horizontal_alignment=CENTER&vertical_alignment=MIDDLE&r1=0&r2=15&c1=0&c2=9`;
+
+    // << 성능 최적화: OAuth 토큰 캐싱
+    const oauthToken = ScriptApp.getOAuthToken();
     const blob = UrlFetchApp.fetch(pdfUrl, {
-      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, // << OAuth 토큰 사용
-    }).getBlob(); // << PDF Blob 생성
+      headers: { Authorization: `Bearer ${oauthToken}` },
+    }).getBlob();
 
     // ③ 파일명 설정
     const ts = data().getRange(row, 1).getValue(); // << A열: 타임스탬프
@@ -359,12 +410,12 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
       let trashCount = 0;
       const foundFiles = [];
 
-      // 폴더 내 모든 파일 목록 출력
+      // 폴더 내 모든 파일 목록 출력 (성능 최적화: 배치 처리)
+      const filesToProcess = [];
       while (allFiles.hasNext()) {
         const file = allFiles.next();
         const currentFileName = file.getName();
         totalFiles++;
-        console.log(`[PDF생성] 폴더 내 파일 ${totalFiles}: ${currentFileName}`);
 
         // 정확한 패턴 매칭: 시작 부분 + 시트명 + .pdf
         if (
@@ -372,11 +423,13 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
           currentFileName.includes(`_${sheetName}${fileSuffix}`)
         ) {
           trashCount++;
-          foundFiles.push({ name: currentFileName, id: file.getId() });
+          filesToProcess.push({ name: currentFileName, id: file.getId() });
           console.log(`[PDF생성] 매칭 파일 ${trashCount} 발견: ${currentFileName}`);
-          //`[PDF생성] 매칭 파일 ${trashCount} 발견: ${currentFileName}`);
         }
       }
+
+      // << 성능 최적화: 발견된 파일들을 foundFiles에 한 번에 추가
+      foundFiles.push(...filesToProcess);
 
       console.log(`[PDF생성] 폴더 내 총 ${totalFiles}개 파일, 매칭 파일 ${trashCount}개`);
       //`[PDF생성] 폴더 내 총 ${totalFiles}개 파일, 매칭 파일 ${trashCount}개`);
@@ -418,8 +471,9 @@ function exportPdfAndNotify(row) {
     const pdfFileId = createPdfFromSheet(row, true);
     console.log(`[exportPdfAndNotify] PDF 생성 완료 - fileId: ${pdfFileId}, row: ${row}`);
 
-    // << 2) 시트 삭제 (존재 여부 재확인 후 삭제)
-    let sheetName = data().getRange(row, 15).getDisplayValue().trim();
+    // << 2) 시트 삭제 (존재 여부 재확인 후 삭제) - 성능 최적화: 배치 읽기
+    const rowData = data().getRange(row, 15, 1, 1).getDisplayValues()[0];
+    let sheetName = rowData[0].trim();
     console.log(`[exportPdfAndNotify] 삭제할 시트명: ${sheetName}, row: ${row}`);
 
     if (!sheetName) {
