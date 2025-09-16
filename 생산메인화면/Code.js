@@ -74,7 +74,7 @@ function logDataChange(e) {
     var numCols = range.getNumColumns();
     var startRow = range.getRow();
     var startCol = range.getColumn();
-    
+
     // 변경 전 값들 (oldValues가 있는 경우)
     var oldValues = e.oldValues || [];
     // 변경 후 값들
@@ -85,10 +85,10 @@ function logDataChange(e) {
       for (var c = 0; c < numCols; c++) {
         var cellRow = startRow + r;
         var cellCol = startCol + c;
-        
+
         // 개별 셀 주소 생성 (예: O27, O28, O29)
         var cellAddress = range.getCell(r + 1, c + 1).getA1Notation();
-        
+
         // 변경 전 내용
         var oldValue = '';
         if (oldValues && oldValues[r] && oldValues[r][c] !== undefined) {
@@ -96,26 +96,25 @@ function logDataChange(e) {
         } else if (e.oldValue !== undefined && numRows === 1 && numCols === 1) {
           oldValue = e.oldValue;
         }
-        
+
         // 변경 후 내용
         var newValue = newValues[r][c] || '';
-        
+
         // 마지막 행 찾기
         var lastRow = logSheet.getLastRow();
-        
+
         // 새 행에 데이터 추가 (E열은 나중에 카톡 발송시 업데이트)
         var newRow = lastRow + 1;
         logSheet
           .getRange(newRow, 1, 1, 5)
           .setValues([[timestamp, cellAddress, oldValue, newValue, '']]);
-        
+
         // A열 날짜 형식 설정
         logSheet.getRange(newRow, 1).setNumberFormat('yy.mm.dd hh:mm:ss');
-        
+
         console.log('변경 이력 기록:', { timestamp, cellAddress, oldValue, newValue });
       }
     }
-    
   } catch (error) {
     console.error('변경 이력 기록 중 오류:', error);
   }
@@ -166,23 +165,23 @@ function getUsersFromUUIDSheet() {
 function sendKakaoNotification(editEvent) {
   try {
     var currentTime = new Date();
-    
+
     // 데이터 변경 이력 시트에서 마지막 카톡 발송 시간 확인
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var logSheet = spreadsheet.getSheetByName('데이터 변경 이력');
-    
+
     if (logSheet) {
       var lastRow = logSheet.getLastRow();
-      
+
       // E열(카톡발송시간)에서 가장 최근 발송 시간 찾기
       for (var i = lastRow; i >= 2; i--) {
         var kakaoSentTimeCell = logSheet.getRange(i, 5);
         var kakaoSentTime = kakaoSentTimeCell.getValue();
-        
+
         if (kakaoSentTime) {
           console.log('발견된 카톡 발송 시간 타입:', typeof kakaoSentTime);
           console.log('발견된 카톡 발송 시간 값:', kakaoSentTime);
-          
+
           // Date 객체로 변환 시도
           var lastSentDate;
           if (kakaoSentTime instanceof Date) {
@@ -191,14 +190,14 @@ function sendKakaoNotification(editEvent) {
             // 텍스트인 경우 Date로 변환
             lastSentDate = new Date(kakaoSentTime);
           }
-          
+
           console.log('변환된 날짜:', lastSentDate);
           console.log('현재 시간:', currentTime);
-          
+
           var timeDiff = currentTime.getTime() - lastSentDate.getTime();
           console.log('시간 차이(밀리초):', timeDiff);
           console.log('쿨타임 기준(밀리초):', KAKAO_COOLDOWN);
-          
+
           if (timeDiff < KAKAO_COOLDOWN && !isNaN(lastSentDate.getTime())) {
             console.log('카카오톡 쿨타임 중입니다. 마지막 발송:', lastSentDate);
             console.log('남은 시간:', Math.ceil((KAKAO_COOLDOWN - timeDiff) / 1000 / 60) + '분');
@@ -228,7 +227,6 @@ function sendKakaoNotification(editEvent) {
 
     // 이력 시트 E열에 카톡 발송 시간 기록
     updateKakaoSentTime(currentTime);
-    
   } catch (error) {
     console.error('카카오톡 알림 발송 중 오류:', error);
   }
@@ -240,23 +238,23 @@ function sendKakaoNotification(editEvent) {
 function generateChangeInfo(editEvent) {
   try {
     if (!editEvent) return '';
-    
+
     var range = editEvent.range;
     var numRows = range.getNumRows();
     var numCols = range.getNumColumns();
-    
+
     // 변경 전 값들
     var oldValues = editEvent.oldValues || [];
     // 변경 후 값들
     var newValues = range.getValues();
-    
+
     var changeDetails = [];
-    
+
     // 각 셀별로 변경 정보 생성
     for (var r = 0; r < numRows; r++) {
       for (var c = 0; c < numCols; c++) {
         var cellAddress = range.getCell(r + 1, c + 1).getA1Notation();
-        
+
         // 변경 전 내용
         var oldValue = '';
         if (oldValues && oldValues[r] && oldValues[r][c] !== undefined) {
@@ -264,23 +262,28 @@ function generateChangeInfo(editEvent) {
         } else if (editEvent.oldValue !== undefined && numRows === 1 && numCols === 1) {
           oldValue = editEvent.oldValue;
         }
-        
+
         // 변경 후 내용
         var newValue = newValues[r][c] || '';
-        
+
         // 변경된 내용만 추가 (빈 값 변경도 포함)
-        var detail = "변경된셀위치:" + cellAddress + "\n변경전:" + oldValue + "\n변경후:" + newValue;
+        var detail =
+          '변경된셀위치:' + cellAddress + '\n변경전:' + oldValue + '\n변경후:' + newValue;
         changeDetails.push(detail);
       }
     }
-    
+
     // 최대 3개 셀까지만 표시 (메시지 길이 제한)
     if (changeDetails.length > 3) {
-      return changeDetails.slice(0, 3).join('\n\n') + '\n\n외 ' + (changeDetails.length - 3) + '개 셀 변경';
+      return (
+        changeDetails.slice(0, 3).join('\n\n') +
+        '\n\n외 ' +
+        (changeDetails.length - 3) +
+        '개 셀 변경'
+      );
     } else {
       return changeDetails.join('\n\n');
     }
-    
   } catch (error) {
     console.error('변경 정보 생성 중 오류:', error);
     return '';
@@ -294,17 +297,17 @@ function updateKakaoSentTime(sentTime) {
   try {
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var logSheet = spreadsheet.getSheetByName('데이터 변경 이력');
-    
+
     if (logSheet) {
       var lastRow = logSheet.getLastRow();
-      
+
       // Date 객체로 직접 저장 (날짜 형식)
       var kakaoTimeCell = logSheet.getRange(lastRow, 5);
       kakaoTimeCell.setValue(sentTime);
-      
+
       // 날짜 형식으로 표시 설정
       kakaoTimeCell.setNumberFormat('yy.mm.dd hh:mm:ss');
-      
+
       console.log('카톡 발송 시간 기록:', sentTime);
     }
   } catch (error) {
@@ -450,9 +453,9 @@ function authorizePermissions() {
 function testKakaoMessage() {
   var targetUrl = 'https://kakao-test-ebon.vercel.app/go.html?doc=생산메인화면';
   var users = getUsersFromUUIDSheet();
-  
+
   // 테스트용 변경 정보
-  var testChangeInfo = "변경된셀위치:A1\n변경전:이전값\n변경후:새로운값";
+  var testChangeInfo = '변경된셀위치:A1\n변경전:이전값\n변경후:새로운값';
 
   console.log('테스트 - 사용자 목록:', users);
   console.log('테스트 - 타겟 URL:', targetUrl);
