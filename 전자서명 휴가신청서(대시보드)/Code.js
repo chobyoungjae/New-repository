@@ -20,7 +20,8 @@ const CFG = {
     // << 보드 ID 매핑
     manager: '1bZD1_-sf-DqFDlxdc_PHxMD2hiqpglP_nP1zZkg54M4', // << 관리자 보드 ID
   },
-  PDF_FOLDER: '1D1d9F6ArRAnSc1IJDw-qM32hZ6gR-Aa7', // << PDF 저장 폴더 ID
+  PDF_FOLDER: '1D1d9F6ArRAnSc1IJDw-qM32hZ6gR-Aa7', // << PDF 저장 폴더 ID (임시)
+  FINAL_PDF_FOLDER: '1CVhH-xUu6Oqb6Ukt_eoVgGFVp0vBtUf2', // << 최종 PDF 저장 폴더 ID
 }; // << CFG 객체 끝
 
 const ss = SpreadsheetApp.getActive(); // << 현재 활성 스프레드시트 참조
@@ -328,7 +329,7 @@ function pushToBoard(boardId, role, srcRow, url) {
   if (url) sh.getRange(dstRow, 14).setValue(url); // << 개인 시트 링크 기록 (N열로 변경)
 
   // 3) IMPORTRANGE 설정
-  const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","A시트!${c}${srcRow}"),"")`; // << IMPORTRANGE 수식
+  const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","${CFG.DATA}!${c}${srcRow}"),"")`; // << IMPORTRANGE 수식
   sh.getRange(dstRow, 8).setFormula(imp('M')); // << 서명자
   sh.getRange(dstRow, 9).setFormula(imp('O')); // << 다음 서명자
   sh.getRange(dstRow, 10).setFormula(imp('Q')); // << 최종 서명자
@@ -350,7 +351,7 @@ function updateRowInCalendar(sheet, row) {
   if (sheet.getRange(row, 18).getValue() === '등록완료') return; // << 이미 등록된 경우 종료
   if (!sheet.getRange(row, CFG.COL.CEO_SIG).getValue()) return; // << CEO 서명 없으면 종료
 
-  const cal = CalendarApp.getCalendarById('r023hniibcf6hqv2i3897umvn4@group.calendar.google.com'); // << 캘린더 ID
+  const cal = CalendarApp.getCalendarById('9kf8p682c4btht0q6agroi9r5c@group.calendar.google.com'); // << 캘린더 ID
   if (!cal) {
     sheet.getRange(row, 18).setValue('캘린더 없음');
     return;
@@ -411,38 +412,54 @@ function exportPdfAndNotify(row) {
     const sheet = ss.getSheetByName(sheetName); // << 시트 객체
     if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName); // << 예외 처리
 
-    const folder = DriveApp.getFolderById(CFG.PDF_FOLDER);
-
-    // ① 기존 파일 휴지통 이동
-    console.log(`[최종PDF생성] 기존 파일 휴지통 이동 중: ${sheetName}`);
+    // ① 기존 임시 PDF 파일들 삭제 (두 폴더 모두에서)
+    console.log(`[최종PDF생성] 기존 파일 삭제 중: ${sheetName}`);
 
     const filePrefix = '전자서명 휴가신청서(대시보드)_';
     const fileSuffix = `.pdf`;
+    let totalTrashCount = 0;
 
-    const allFiles = folder.getFiles();
-    let trashCount = 0;
-
-    // 폴더 내 매칭 파일들을 휴지통으로 이동
-    while (allFiles.hasNext()) {
-      const file = allFiles.next();
+    // 임시 폴더에서 기존 파일 삭제
+    const tempFolder = DriveApp.getFolderById(CFG.PDF_FOLDER);
+    const tempFiles = tempFolder.getFiles();
+    while (tempFiles.hasNext()) {
+      const file = tempFiles.next();
       const currentFileName = file.getName();
-
-      // 정확한 패턴 매칭: 시작 부분 + 시트명 + .pdf
       if (
         currentFileName.startsWith(filePrefix) &&
         currentFileName.includes(`_${sheetName}${fileSuffix}`)
       ) {
         try {
           file.setTrashed(true);
-          trashCount++;
-          console.log(`[최종PDF생성] 파일 휴지통 이동 성공: ${currentFileName}`);
+          totalTrashCount++;
+          console.log(`[최종PDF생성] 임시폴더 파일 삭제: ${currentFileName}`);
         } catch (error) {
-          console.log(`[최종PDF생성] 파일 휴지통 이동 실패: ${currentFileName} - ${error.message}`);
+          console.log(`[최종PDF생성] 임시폴더 파일 삭제 실패: ${currentFileName} - ${error.message}`);
         }
       }
     }
 
-    console.log(`[최종PDF생성] 휴지통 이동 완료 - 총 ${trashCount}개 파일 처리`);
+    // 최종 폴더에서 기존 파일 삭제
+    const finalFolder = DriveApp.getFolderById(CFG.FINAL_PDF_FOLDER);
+    const finalFiles = finalFolder.getFiles();
+    while (finalFiles.hasNext()) {
+      const file = finalFiles.next();
+      const currentFileName = file.getName();
+      if (
+        currentFileName.startsWith(filePrefix) &&
+        currentFileName.includes(`_${sheetName}${fileSuffix}`)
+      ) {
+        try {
+          file.setTrashed(true);
+          totalTrashCount++;
+          console.log(`[최종PDF생성] 최종폴더 파일 삭제: ${currentFileName}`);
+        } catch (error) {
+          console.log(`[최종PDF생성] 최종폴더 파일 삭제 실패: ${currentFileName} - ${error.message}`);
+        }
+      }
+    }
+
+    console.log(`[최종PDF생성] 파일 삭제 완료 - 총 ${totalTrashCount}개 파일 처리`);
 
     // ② PDF 생성
     const baseUrl = ss.getUrl().replace(/\/edit$/, ''); // << 기본 URL
@@ -475,7 +492,7 @@ function exportPdfAndNotify(row) {
     ); // << 파일명 포맷
     const fileName = `전자서명 휴가신청서(대시보드)_${formatted}_${sheetName}.pdf`; // << 파일명 통일
     blob.setName(fileName); // << Blob 이름 설정
-    folder.createFile(blob); // << Drive 업로드
+    finalFolder.createFile(blob); // << 최종 폴더에 업로드
 
     // ③ 임시시트 삭제
     console.log(`[최종PDF생성] 임시시트 삭제 중: ${sheetName}`);
