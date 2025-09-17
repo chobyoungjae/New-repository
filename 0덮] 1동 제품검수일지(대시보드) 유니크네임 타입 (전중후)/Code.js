@@ -341,7 +341,7 @@ function pushToBoard(boardId, role, srcRow) {
 }
 
 /********* PDF 생성 함수 *********/ // << PDF 생성 및 Drive 업로드 (파일 ID 반환)
-function createPdfFromSheet(row, moveOldToTrash = false) {
+function createPdfFromSheet(row, moveOldToTrash = false, customFolderId = null) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000); // << 동시 실행 방지, 안정적인 처리
 
@@ -380,7 +380,9 @@ function createPdfFromSheet(row, moveOldToTrash = false) {
     const fileName = `1동 제품검수일지(대시보드)_${formatted}_${sheetName}.pdf`;
     blob.setName(fileName);
 
-    const folder = DriveApp.getFolderById(CFG.PDF_FOLDER);
+    // << 폴더 ID 결정: customFolderId가 있으면 사용, 없으면 기본 폴더 사용
+    const folderId = customFolderId || CFG.PDF_FOLDER;
+    const folder = DriveApp.getFolderById(folderId);
 
     // ④ 기존 파일 휴지통 이동 (서명 완료 시)
     if (moveOldToTrash) {
@@ -466,9 +468,10 @@ function exportPdfAndNotify(row) {
   console.log(`[exportPdfAndNotify] 시작 - row: ${row}`);
 
   try {
-    // << 1) PDF 생성 (기존 파일 휴지통 이동 후 새 파일 생성)
+    // << 1) PDF 생성 (기존 파일 휴지통 이동 후 새 파일 생성, 새로운 폴더에 저장)
     console.log(`[exportPdfAndNotify] PDF 생성 시작 - row: ${row}`);
-    const pdfFileId = createPdfFromSheet(row, true);
+    const finalFolderId = '1LUi7lgAy3Uru4FbnB88hBxXIZ-Pb2NGE'; // << 최종 서명 PDF 저장 폴더
+    const pdfFileId = createPdfFromSheet(row, true, finalFolderId);
     console.log(`[exportPdfAndNotify] PDF 생성 완료 - fileId: ${pdfFileId}, row: ${row}`);
 
     // << 2) 시트 삭제 (존재 여부 재확인 후 삭제) - 성능 최적화: 배치 읽기
