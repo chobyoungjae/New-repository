@@ -411,6 +411,40 @@ function exportPdfAndNotify(row) {
     const sheet = ss.getSheetByName(sheetName); // << 시트 객체
     if (!sheet) throw new Error('시트를 찾을 수 없습니다: ' + sheetName); // << 예외 처리
 
+    const folder = DriveApp.getFolderById(CFG.PDF_FOLDER);
+
+    // ① 기존 파일 휴지통 이동
+    console.log(`[최종PDF생성] 기존 파일 휴지통 이동 중: ${sheetName}`);
+
+    const filePrefix = '전자서명 휴가신청서(대시보드)_';
+    const fileSuffix = `.pdf`;
+
+    const allFiles = folder.getFiles();
+    let trashCount = 0;
+
+    // 폴더 내 매칭 파일들을 휴지통으로 이동
+    while (allFiles.hasNext()) {
+      const file = allFiles.next();
+      const currentFileName = file.getName();
+
+      // 정확한 패턴 매칭: 시작 부분 + 시트명 + .pdf
+      if (
+        currentFileName.startsWith(filePrefix) &&
+        currentFileName.includes(`_${sheetName}${fileSuffix}`)
+      ) {
+        try {
+          file.setTrashed(true);
+          trashCount++;
+          console.log(`[최종PDF생성] 파일 휴지통 이동 성공: ${currentFileName}`);
+        } catch (error) {
+          console.log(`[최종PDF생성] 파일 휴지통 이동 실패: ${currentFileName} - ${error.message}`);
+        }
+      }
+    }
+
+    console.log(`[최종PDF생성] 휴지통 이동 완료 - 총 ${trashCount}개 파일 처리`);
+
+    // ② PDF 생성
     const baseUrl = ss.getUrl().replace(/\/edit$/, ''); // << 기본 URL
     const gid = sheet.getSheetId(); // << 시트 ID
     const pdfUrl =
@@ -439,8 +473,18 @@ function exportPdfAndNotify(row) {
       Session.getScriptTimeZone(),
       'yyyy-MM-dd_HH:mm:ss'
     ); // << 파일명 포맷
-    blob.setName(`휴가신청서_${formatted}_${sheetName}.pdf`); // << Blob 이름 설정
-    DriveApp.getFolderById(CFG.PDF_FOLDER).createFile(blob); // << Drive 업로드
+    const fileName = `전자서명 휴가신청서(대시보드)_${formatted}_${sheetName}.pdf`; // << 파일명 통일
+    blob.setName(fileName); // << Blob 이름 설정
+    folder.createFile(blob); // << Drive 업로드
+
+    // ③ 임시시트 삭제
+    console.log(`[최종PDF생성] 임시시트 삭제 중: ${sheetName}`);
+    try {
+      ss.deleteSheet(sheet);
+      console.log(`[최종PDF생성] 임시시트 삭제 완료: ${sheetName}`);
+    } catch (error) {
+      console.log(`[최종PDF생성] 임시시트 삭제 실패: ${sheetName} - ${error.message}`);
+    }
   } finally {
     lock.releaseLock(); // << 락 해제
   }
