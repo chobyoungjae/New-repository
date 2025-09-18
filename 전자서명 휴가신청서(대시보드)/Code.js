@@ -144,8 +144,13 @@ function doGet(e) {
     if (nextName) {
       // << 이름이 있으면
       const info = lookupBoardByName(nextName); // << 보드 정보 조회
-      if (info) pushToBoard(info.boardId, step.nextRole, row, sheetUrl); // << 보드에 전송
-      else Logger.log(`⚠ 매핑된 ${step.nextRole} 보드가 없습니다: ` + nextName); // << 매핑 실패
+      if (info) {
+        console.log(`[doGet] pushToBoard 호출 - 보드ID: ${info.boardId}, 역할: ${step.nextRole}, 행: ${row}`);
+        pushToBoard(info.boardId, step.nextRole, row, sheetUrl); // << 보드에 전송
+        console.log(`[doGet] pushToBoard 완료 - 역할: ${step.nextRole}, 행: ${row}`);
+      } else {
+        console.log(`⚠ 매핑된 ${step.nextRole} 보드가 없습니다: ` + nextName); // << 매핑 실패
+      }
     }
   }
   // (C) CEO 단계
