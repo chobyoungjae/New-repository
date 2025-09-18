@@ -410,17 +410,27 @@ function pushToBoard(boardId, role, srcRow, url) {
       }
     }
 
-    // IMPORTRANGE 수식들 (배치 처리)
+    // IMPORTRANGE 수식들 (개별 처리로 안정성 확보)
     const imp = c => `=IFERROR(IMPORTRANGE("${masterId}","${CFG.DATA}!${c}${srcRow}"),"")`;
-    const formulas = [
-      [imp('M')], // H열 (서명자)
-      [imp('O')], // I열 (다음 서명자)
-      [imp('Q')]  // J열 (최종 서명자)
-    ];
-    sh.getRange(dstRow, 8, 1, 3).setFormulas(formulas);
+    sh.getRange(dstRow, 8).setFormula(imp('M')); // H열 (서명자)
+    sh.getRange(dstRow, 9).setFormula(imp('O')); // I열 (다음 서명자)
+    sh.getRange(dstRow, 10).setFormula(imp('Q')); // J열 (최종 서명자)
 
-    // 체크박스 삽입
-    sh.getRange(dstRow, 12).insertCheckboxes();
+    // 체크박스 삽입 (디버깅 로그 추가)
+    console.log(`[체크박스] 삽입 시도 - 행: ${dstRow}, 열: 12`);
+    try {
+      sh.getRange(dstRow, 12).insertCheckboxes();
+      console.log(`[체크박스] ✅ 삽입 성공 - 행: ${dstRow}`);
+    } catch (error) {
+      console.log(`[체크박스] ❌ 삽입 실패 - 행: ${dstRow}, 오류: ${error.message}`);
+      console.log(`[체크박스] 스택: ${error.stack}`);
+
+      // 셀 정보 확인
+      const cell = sh.getRange(dstRow, 12);
+      console.log(`[체크박스] 셀 주소: ${cell.getA1Notation()}`);
+      console.log(`[체크박스] 현재 값: ${cell.getValue()}`);
+      console.log(`[체크박스] 현재 수식: ${cell.getFormula()}`);
+    }
 
     // 서명 하이퍼링크
     const execUrl = lookupExecUrlByScriptId(ScriptApp.getScriptId());
