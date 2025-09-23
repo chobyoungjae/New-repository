@@ -498,10 +498,10 @@ function exportPdfAndNotify(row) {
         ss.deleteSheet(sheet);
         console.log(`[exportPdfAndNotify] 시트 삭제 완료: ${sheetName}, row: ${row}`);
 
-        // << 삭제 후 O열 초기화 (시트가 삭제되었으므로)
-        data().getRange(row, 15).setValue('');
+        // << O열 유니크네임은 삭제하지 않고 유지
+        // data().getRange(row, 15).setValue(''); // 주석 처리: O열 유니크네임 유지
         SpreadsheetApp.flush();
-        console.log(`[exportPdfAndNotify] O열 초기화 완료 - row: ${row}`);
+        console.log(`[exportPdfAndNotify] 시트 삭제 완료, O열 유니크네임 유지 - row: ${row}`);
       } catch (deleteError) {
         console.log(
           `[exportPdfAndNotify] 시트 삭제 오류: ${deleteError.message}, sheetName: ${sheetName}, row: ${row}`
