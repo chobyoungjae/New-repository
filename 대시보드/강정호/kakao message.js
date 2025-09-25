@@ -10,7 +10,8 @@ const RECEIVER_NAME = '강정호';  // 메시지 받을 사람 이름 (여기만
 
 /**
  * 변경 시 트리거용 함수 (onChange)
- * 새로운 행이 추가될 때 강정호에게 카카오톡 알림 발송
+ * 새로운 행이 추가될 때 카카오톡 알림 발송
+ * 타임스탬프 기반으로 가장 최근 데이터만 처리
  */
 function onEditForKakaoNotification(e) {
   try {
@@ -20,19 +21,30 @@ function onEditForKakaoNotification(e) {
     // INSERT_ROW 또는 OTHER 타입일 때 처리
     if (e && (e.changeType === 'INSERT_ROW' || e.changeType === 'OTHER')) {
       const sheet = SpreadsheetApp.getActiveSheet();
-      const lastRow = sheet.getLastRow();
 
-      // 마지막 행의 A~D열 데이터 읽기
-      const rowData = sheet.getRange(lastRow, 1, 1, 4).getDisplayValues()[0];
-      const 작성시간 = rowData[0] || '정보없음';
-      const 문서명 = rowData[1] || '정보없음';
-      const 작성자 = rowData[2] || '정보없음';
-      const 내용 = rowData[3] || '정보없음';
+      // 타임스탬프 기반으로 가장 최근 데이터 찾기
+      const newDataRow = findLatestDataRow(sheet);
 
-      // A열에 데이터가 있는 경우에만 알림 발송
-      if (작성시간 && 작성시간 !== '정보없음') {
-        console.log('새 행 추가 감지, 카카오톡 알림 발송:', 작성시간, 문서명, 작성자, 내용);
-        sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용);
+      if (newDataRow) {
+        // 찾은 행의 데이터 읽기 (A~D열)
+        const rowData = sheet.getRange(newDataRow, 1, 1, 4).getDisplayValues()[0];
+        const 작성시간 = rowData[0] || '정보없음';
+        const 문서명 = rowData[1] || '정보없음';
+        const 작성자 = rowData[2] || '정보없음';
+        const 내용 = rowData[3] || '정보없음';
+
+        // 중복 전송 방지 체크
+        if (!isAlreadySent(작성시간)) {
+          console.log(`새 데이터 감지 (${newDataRow}행), 카카오톡 알림 발송:`, 작성시간, 문서명, 작성자, 내용);
+          sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용);
+
+          // 전송 완료 기록
+          markAsSent(작성시간);
+        } else {
+          console.log('이미 전송된 데이터입니다:', 작성시간);
+        }
+      } else {
+        console.log('최근 1분 이내 새로운 데이터를 찾을 수 없습니다.');
       }
     } else {
       // 다른 변경이거나 e.range가 있는 경우 (폼 제출 등)
@@ -47,16 +59,121 @@ function onEditForKakaoNotification(e) {
         const 작성자 = rowData[2] || '정보없음';
         const 내용 = rowData[3] || '정보없음';
 
-        // A열에 데이터가 있는 경우에만 알림 발송
-        if (작성시간 && 작성시간 !== '정보없음') {
-          console.log('폼 제출 감지, 카카오톡 알림 발송:', 작성시간, 문서명, 작성자, 내용);
+        // A열에 데이터가 있고 중복되지 않은 경우에만 알림 발송
+        if (작성시간 && 작성시간 !== '정보없음' && !isAlreadySent(작성시간)) {
+          console.log(`폼 제출 감지 (${row}행), 카카오톡 알림 발송:`, 작성시간, 문서명, 작성자, 내용);
           sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용);
+          markAsSent(작성시간);
         }
       }
     }
 
   } catch (error) {
     console.log('카카오톡 알림 발송 중 오류:', error.message);
+  }
+}
+
+/**
+ * 타임스탬프 기반으로 가장 최근 데이터 행 찾기
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 검색할 시트
+ * @returns {number|null} 가장 최근 데이터가 있는 행 번호, 없으면 null
+ */
+function findLatestDataRow(sheet) {
+  try {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null; // 헤더만 있거나 데이터가 없는 경우
+
+    // 모든 행의 A열(타임스탬프) 데이터 가져오기
+    const timestampRange = sheet.getRange(2, 1, lastRow - 1, 1);
+    const timestamps = timestampRange.getValues();
+
+    const now = new Date();
+    let latestRow = null;
+    let latestTime = null;
+
+    // 각 행의 타임스탬프를 확인하여 가장 최근 것 찾기
+    for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = timestamps[i][0];
+
+      if (timestamp && timestamp instanceof Date) {
+        // 현재 시각과의 차이 계산 (밀리초)
+        const timeDiff = now - timestamp;
+
+        // 1분(60000ms) 이내의 데이터만 고려
+        if (timeDiff >= 0 && timeDiff <= 60000) {
+          if (!latestTime || timestamp > latestTime) {
+            latestTime = timestamp;
+            latestRow = i + 2; // 실제 행 번호 (헤더 제외)
+          }
+        }
+      }
+    }
+
+    return latestRow;
+
+  } catch (error) {
+    console.log('최신 데이터 행 찾기 중 오류:', error.message);
+    return null;
+  }
+}
+
+/**
+ * 이미 전송된 데이터인지 확인
+ * @param {string} timestamp - 확인할 타임스탬프
+ * @returns {boolean} 이미 전송되었으면 true
+ */
+function isAlreadySent(timestamp) {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const sentList = scriptProperties.getProperty('SENT_TIMESTAMPS');
+
+    if (!sentList) return false;
+
+    const sentTimestamps = JSON.parse(sentList);
+
+    // 24시간 이내 데이터만 유지 (메모리 관리)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentTimestamps = sentTimestamps.filter(ts => new Date(ts) > oneDayAgo);
+
+    // 정리된 목록 저장
+    if (recentTimestamps.length !== sentTimestamps.length) {
+      scriptProperties.setProperty('SENT_TIMESTAMPS', JSON.stringify(recentTimestamps));
+    }
+
+    return recentTimestamps.includes(timestamp);
+
+  } catch (error) {
+    console.log('전송 기록 확인 중 오류:', error.message);
+    return false;
+  }
+}
+
+/**
+ * 전송 완료 표시
+ * @param {string} timestamp - 전송 완료한 타임스탬프
+ */
+function markAsSent(timestamp) {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    let sentList = scriptProperties.getProperty('SENT_TIMESTAMPS');
+
+    let sentTimestamps = sentList ? JSON.parse(sentList) : [];
+
+    // 중복 방지
+    if (!sentTimestamps.includes(timestamp)) {
+      sentTimestamps.push(timestamp);
+
+      // 최대 100개까지만 저장 (메모리 관리)
+      if (sentTimestamps.length > 100) {
+        sentTimestamps = sentTimestamps.slice(-100);
+      }
+
+      scriptProperties.setProperty('SENT_TIMESTAMPS', JSON.stringify(sentTimestamps));
+      console.log('전송 기록 저장:', timestamp);
+    }
+
+  } catch (error) {
+    console.log('전송 기록 저장 중 오류:', error.message);
   }
 }
 
