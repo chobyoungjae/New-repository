@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx @modelcontextprotocol/cli install @modelcontextprotocol/server-sequential-thinking)",
       "Bash(git add:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
