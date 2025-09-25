@@ -4,6 +4,10 @@
  * 작성일: 2025-09-25
  */
 
+// ========== 설정 변경 구역 ==========
+const RECEIVER_NAME = '강정호';  // 메시지 받을 사람 이름 (여기만 바꾸세요!)
+// ===================================
+
 /**
  * 변경 시 트리거용 함수 (onChange)
  * 새로운 행이 추가될 때 강정호에게 카카오톡 알림 발송
@@ -28,7 +32,7 @@ function onEditForKakaoNotification(e) {
       // A열에 데이터가 있는 경우에만 알림 발송
       if (작성시간 && 작성시간 !== '정보없음') {
         console.log('새 행 추가 감지, 카카오톡 알림 발송:', 작성시간, 문서명, 작성자, 내용);
-        sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내용);
+        sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용);
       }
     } else {
       // 다른 변경이거나 e.range가 있는 경우 (폼 제출 등)
@@ -46,7 +50,7 @@ function onEditForKakaoNotification(e) {
         // A열에 데이터가 있는 경우에만 알림 발송
         if (작성시간 && 작성시간 !== '정보없음') {
           console.log('폼 제출 감지, 카카오톡 알림 발송:', 작성시간, 문서명, 작성자, 내용);
-          sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내용);
+          sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용);
         }
       }
     }
@@ -57,9 +61,9 @@ function onEditForKakaoNotification(e) {
 }
 
 /**
- * 조병재 토큰으로 강정호에게 카카오톡 메시지 발송 함수
+ * 조병재 토큰으로 지정된 사람에게 카카오톡 메시지 발송 함수
  */
-function sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내용) {
+function sendKakaoMessageToReceiver(작성시간, 문서명, 작성자, 내용) {
   try {
     // 카카오 토큰 시스템의 스프레드시트 ID
     const 토큰시트스프레드시트ID = '15RDzwxbuo2X3B95axNaU41rj0ZECxfpu4nySK9sjy60';
@@ -82,19 +86,19 @@ function sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내�
       return;
     }
 
-    // 강정호의 UUID 찾기 (받는 사람)
+    // 지정된 사람의 UUID 찾기 (받는 사람)
     const 친구데이터 = 친구시트.getRange(2, 1, 친구시트.getLastRow() - 1, 3).getValues();
-    let 강정호UUID = '';
+    let receiverUUID = '';
 
     for (let i = 0; i < 친구데이터.length; i++) {
-      if (친구데이터[i][0] === '강정호') {
-        강정호UUID = 친구데이터[i][1]; // B열 UUID
+      if (친구데이터[i][0] === RECEIVER_NAME) {
+        receiverUUID = 친구데이터[i][1]; // B열 UUID
         break;
       }
     }
 
-    if (!강정호UUID) {
-      console.log('강정호의 UUID를 찾을 수 없습니다.');
+    if (!receiverUUID) {
+      console.log(`${RECEIVER_NAME}의 UUID를 찾을 수 없습니다.`);
       return;
     }
 
@@ -107,7 +111,7 @@ function sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내�
 
     // 친구에게 보내기 API 페이로드 - iOS/안드로이드 모두 지원
     const payload = {
-      receiver_uuids: JSON.stringify([강정호UUID]),
+      receiver_uuids: JSON.stringify([receiverUUID]),
       template_object: JSON.stringify({
         object_type: 'text',
         text: message,
@@ -134,7 +138,7 @@ function sendKakaoMessageToKangJeongho(작성시간, 문서명, 작성자, 내�
     const responseData = JSON.parse(response.getContentText());
 
     if (response.getResponseCode() === 200) {
-      console.log('✅ 조병재 → 강정호 카카오톡 메시지 발송 성공');
+      console.log(`✅ 조병재 → ${RECEIVER_NAME} 카카오톡 메시지 발송 성공`);
     } else {
       console.log('⚠️ 카카오톡 메시지 발송 실패:', response.getResponseCode());
       console.log('응답 내용:', responseData);
@@ -158,7 +162,7 @@ function testKakaoMessage() {
     내용: '테스트용 알림 메시지입니다.'
   };
 
-  sendKakaoMessageToKangJeongho(
+  sendKakaoMessageToReceiver(
     테스트데이터.작성시간,
     테스트데이터.문서명,
     테스트데이터.작성자,
