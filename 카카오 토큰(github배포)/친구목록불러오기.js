@@ -43,21 +43,35 @@ function getKakaoFriendsToSheet() {
   const rowNum = idx + 2;
   const token = tokenSheet.getRange(rowNum, 2).getValue();
 
-  // 친구 목록 API 호출
-  const url = 'https://kapi.kakao.com/v1/api/talk/friends';
+  // 친구 목록 API 호출 (페이징 처리로 전체 친구 가져오기)
   const options = {
     method: 'get',
     headers: { Authorization: 'Bearer ' + token },
     muteHttpExceptions: true,
   };
-  const resp = UrlFetchApp.fetch(url, options);
-  if (resp.getResponseCode() === 401) {
-    throw new Error('토큰이 만료되었거나 유효하지 않습니다. 토큰갱신 시트를 확인하세요.');
+
+  let allFriends = [];
+  let nextUrl = 'https://kapi.kakao.com/v1/api/talk/friends?limit=100';
+
+  // after_url이 없을 때까지 반복 조회
+  while (nextUrl) {
+    const resp = UrlFetchApp.fetch(nextUrl, options);
+
+    if (resp.getResponseCode() === 401) {
+      throw new Error('토큰이 만료되었거나 유효하지 않습니다. 토큰갱신 시트를 확인하세요.');
+    }
+    if (resp.getResponseCode() !== 200) {
+      throw new Error(`친구 목록 호출 실패(${resp.getResponseCode()}): ${resp.getContentText()}`);
+    }
+
+    const json = JSON.parse(resp.getContentText());
+    allFriends = allFriends.concat(json.elements || []);
+    nextUrl = json.after_url || null;  // 다음 페이지 URL (없으면 null로 루프 종료)
   }
-  if (resp.getResponseCode() !== 200) {
-    throw new Error(`친구 목록 호출 실패(${resp.getResponseCode()}): ${resp.getContentText()}`);
-  }
-  const elements = JSON.parse(resp.getContentText()).elements || [];
+
+  // 퇴사자 필터링
+  const 퇴사자목록 = ['허정은', '']; // 퇴사자 이름 추가
+  const elements = allFriends.filter(f => !퇴사자목록.includes(f.profile_nickname));
 
   // 결과 시트 초기화
   if (friendSheet.getLastRow() >= 4) {
