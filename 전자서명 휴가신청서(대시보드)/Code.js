@@ -366,7 +366,7 @@ function pushToBoard(boardId, role, srcRow, url) {
 
     // 1) A~G 값 쓰기 (배치 처리)
     const ts = new Date();
-    const docName = '전자서명 휴가신청서(대시보드)';
+    const docName = '전자서명 휴가신청서';
     const vals = [
       ts,
       docName,
