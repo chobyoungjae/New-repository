@@ -32,6 +32,19 @@ function testSendErrorAlert() {
   Logger.log(res);
 }
 
+// 🔍 세션 로그인 디버깅 전용 함수
+function testLoginDebug() {
+  console.log('=== 세션 로그인 테스트 시작 ===');
+  const sessionId = loginToEcountWithOfficialKey();
+  if (sessionId) {
+    console.log('✅ 성공! 세션 ID:', sessionId);
+  } else {
+    console.log('❌ 실패! 세션 ID를 받지 못했습니다.');
+    console.log('위 로그에서 "로그인 응답 전문"을 확인하세요.');
+  }
+  console.log('=== 테스트 종료 ===');
+}
+
 /**
  * 트리거 대시보드용 백데이터 (문서 ID 기준 기록)
  */
@@ -51,7 +64,7 @@ function logRegularTriggerMapped(docId) {
 
 // 1) 로그인 → 세션 ID 반환
 function loginToEcountWithOfficialKey() {
-  const apiUrl = 'https://oapicb.ecount.com/OAPI/V2/OAPILogin';
+  const apiUrl = 'https://oapiCB.ecount.com/OAPI/V2/OAPILogin';
   const payload = {
     COM_CODE: '606274',
     USER_ID: 'OOSDREAM',
@@ -59,27 +72,36 @@ function loginToEcountWithOfficialKey() {
     LAN_TYPE: 'ko-KR',
     ZONE: 'CB',
   };
-  const res = UrlFetchApp.fetch(apiUrl, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
-  });
-  if (res.getResponseCode() !== 200) return null;
+
   try {
+    const res = UrlFetchApp.fetch(apiUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+
+    const statusCode = res.getResponseCode();
+    if (statusCode !== 200) {
+      return null;
+    }
+
     const j = JSON.parse(res.getContentText());
-    return j.Status === '200' && j.Data && j.Data.Datas && j.Data.Datas.SESSION_ID
-      ? j.Data.Datas.SESSION_ID
-      : null;
+
+    // 응답의 Status가 숫자 200 또는 문자열 "200" 둘 다 체크
+    if ((j.Status === 200 || j.Status === '200') && j.Data && j.Data.Datas && j.Data.Datas.SESSION_ID) {
+      return j.Data.Datas.SESSION_ID;
+    } else {
+      return null;
+    }
   } catch (e) {
-    Logger.log('로그인 JSON 파싱 오류:', e);
     return null;
   }
 }
 
 // 2) 단건 품목코드 → 제품명 조회
 function getProductName(sessionId, prodCd) {
-  const apiUrl = `https://oapicb.ecount.com/OAPI/V2/InventoryBasic/ViewBasicProduct?SESSION_ID=${sessionId}`;
+  const apiUrl = `https://oapiCB.ecount.com/OAPI/V2/InventoryBasic/ViewBasicProduct?SESSION_ID=${sessionId}`;
   const res = UrlFetchApp.fetch(apiUrl, {
     method: 'post',
     contentType: 'application/json',
@@ -123,7 +145,7 @@ function importInventoryListFromEcount() {
   // 2) 위치별 재고 조회
   locationCodes.forEach(code => {
     try {
-      const apiUrl = `https://oapicb.ecount.com/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
+      const apiUrl = `https://oapiCB.ecount.com/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
       const res = UrlFetchApp.fetch(apiUrl, {
         method: 'post',
         contentType: 'application/json',
