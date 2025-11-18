@@ -1,6 +1,0 @@
-2025-09-01 17:45:40,067 - ERROR - 서버 시작 오류: 'cp949' codec can't encode character '\U0001f680' in position 0: illegal multibyte sequence
-2025-09-01 17:45:58,119 - ERROR - 서버 시작 오류: 'cp949' codec can't encode character '\U0001f680' in position 0: illegal multibyte sequence
-2025-09-01 17:46:30,171 - INFO - 웹훅 서버 시작
-2025-09-01 17:46:30,236 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
- * Running on http://localhost:5000
-2025-09-01 17:46:30,252 - INFO - [33mPress CTRL+C to quit[0m
