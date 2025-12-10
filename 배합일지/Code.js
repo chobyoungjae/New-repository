@@ -21,8 +21,10 @@ function moveTimestamps() {
       return;
     }
 
-    const timestampData = sheet1.getRange('A1:A' + lastRow).getValues();
-    const todayTimestamps = [];
+    // 원본 시리얼 넘버를 정확히 유지하기 위해 getDisplayValues()와 getValues() 병행 사용
+    const timestampRange = sheet1.getRange('A1:A' + lastRow);
+    const timestampData = timestampRange.getValues();
+    const todayRows = []; // 오늘 날짜에 해당하는 행 번호 저장
 
     for (let i = 0; i < timestampData.length; i++) {
       const cellValue = timestampData[i][0];
@@ -57,19 +59,24 @@ function moveTimestamps() {
         console.log(`날짜 비교: ${cellDateStr} === ${todayStr}`);
 
         if (cellDate.getTime() === today.getTime()) {
-          todayTimestamps.push([timestampData[i][0]]);
-          console.log('매칭된 데이터 추가:', timestampData[i][0]);
+          todayRows.push(i + 1); // 행 번호 저장 (1-based)
+          console.log('매칭된 행 번호:', i + 1);
         }
       }
     }
 
-    console.log('오늘 날짜 데이터 개수:', todayTimestamps.length);
+    console.log('오늘 날짜 데이터 개수:', todayRows.length);
 
     viewSheet.getRange('B1:B11').clearContent();
 
-    const maxRows = Math.min(todayTimestamps.length, 11);
+    const maxRows = Math.min(todayRows.length, 11);
     if (maxRows > 0) {
-      viewSheet.getRange(`B1:B${maxRows}`).setValues(todayTimestamps.slice(0, maxRows));
+      // 원본 셀을 직접 복사하여 부동소수점 오차 방지
+      for (let i = 0; i < maxRows; i++) {
+        const sourceCell = sheet1.getRange('A' + todayRows[i]);
+        const targetCell = viewSheet.getRange('B' + (i + 1));
+        sourceCell.copyTo(targetCell, SpreadsheetApp.CopyPasteType.PASTE_VALUES, false);
+      }
 
       try {
         const result = transformViewToERP(); // DataTransformer.js의 함수 호출
