@@ -387,16 +387,16 @@ function createPdfFromSheet(row, moveOldToTrash = false, customFolderId = null) 
     // ④ 기존 파일 휴지통 이동 (서명 완료 시)
     if (moveOldToTrash) {
       console.log(`[PDF생성] 기존 파일 휴지통 이동 중: ${fileName}`);
-      //`[PDF생성] 기존 파일 휴지통 이동 중: ${fileName}`);
 
-      // 폴더 접근 권한 확인
+      // << 기존 PDF는 항상 CFG.PDF_FOLDER(원본 폴더)에 있으므로 거기서 검색
+      const originalFolder = DriveApp.getFolderById(CFG.PDF_FOLDER);
+
+      // 원본 폴더 접근 권한 확인
       try {
-        const folderName = folder.getName();
-        console.log(`[PDF생성] 폴더 접근 성공: ${folderName}`);
-        //`[PDF생성] 폴더 접근 성공: ${folderName}`);
+        const originalFolderName = originalFolder.getName();
+        console.log(`[PDF생성] 원본 폴더 접근 성공: ${originalFolderName}`);
       } catch (error) {
-        console.log(`[PDF생성] 폴더 접근 실패: ${error.message}`);
-        //`[PDF생성] 폴더 접근 실패: ${error.message}`);
+        console.log(`[PDF생성] 원본 폴더 접근 실패: ${error.message}`);
         return;
       }
 
@@ -405,9 +405,8 @@ function createPdfFromSheet(row, moveOldToTrash = false, customFolderId = null) 
       const fileSuffix = `.pdf`;
       const searchPattern = `${filePrefix}*_${sheetName}${fileSuffix}`;
       console.log(`[PDF생성] 검색 패턴: ${searchPattern}`);
-      //`[PDF생성] 검색 패턴: ${searchPattern}`);
 
-      const allFiles = folder.getFiles();
+      const allFiles = originalFolder.getFiles();
       let totalFiles = 0;
       let trashCount = 0;
       const foundFiles = [];
