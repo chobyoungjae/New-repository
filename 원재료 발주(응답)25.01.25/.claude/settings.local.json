@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: 구역별 담당자 자동 변경 시스템 추가\n\n- QR 스캔 → 설문 제출 → 해당거래처 담당자 일괄 변경\n- 대상 구역: 배합실, 컵떡장, 외포장실\n- onFormSubmit 트리거 기반 (기존 onEdit과 충돌 없음)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(clasp push:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}
