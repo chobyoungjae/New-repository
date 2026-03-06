@@ -36,7 +36,7 @@ function getKakaoFriendsToSheet() {
   if (!tokenSheet) throw new Error('시트를 찾을 수 없습니다: 토큰갱신');
 
   // 사용자 이름으로 토큰 찾기
-  const nameToFind = '조병재';
+  const nameToFind = '강정호';
   const tokenData = tokenSheet.getRange(2, 1, tokenSheet.getLastRow() - 1, 3).getValues();
   const idx = tokenData.findIndex(row => row[0] === nameToFind);
   if (idx < 0) throw new Error(`토큰 시트에서 ${nameToFind} 행을 찾을 수 없습니다.`);
@@ -80,6 +80,14 @@ function getKakaoFriendsToSheet() {
   const now = new Date();
   const ts = Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   friendSheet.getRange('A1').setValue('친구 목록 갱신: ' + ts);
+
+  // F1/G1에 강정호 토큰 저장 (갱신실패 알림용)
+  const refreshToken = tokenSheet.getRange(rowNum, 3).getValue();
+  friendSheet.getRange('F1').setValue(token);
+  friendSheet.getRange('G1').setValue(refreshToken);
+  friendSheet.getRange('F2').setValue(nameToFind + ' Access Token');
+  friendSheet.getRange('G2').setValue(nameToFind + ' Refresh Token');
+
   friendSheet.getRange('A3:F3').setValues([['이름', 'UUID', '메시지 허용', '', '', 'Timestamp']]);
 
   // 데이터 입력
