@@ -63,15 +63,17 @@ function generateBaseName(row) {
   // << 성능 최적화: 한 번에 여러 컬럼 읽기
   const rowData = data().getRange(row, 3, 1, 10).getValues()[0]; // C~L열 배치 읽기
 
-  const product = rowData[0].toString().trim(); // C열: 제품명 (인덱스 0)
-  const weightVal = rowData[2].toString().trim(); // E열: 숫자 중량 (인덱스 2)
+  const product = rowData[0].toString().trim(); // C열: 제품명
+  const dValue = rowData[1].toString().trim(); // ⭐ D열 추가
+  const weightVal = rowData[2].toString().trim(); // E열: 숫자 중량
   const weight = `${weightVal}g`; // g 고정
-  const expiryRaw = rowData[5]; // H열: 유통기한 (인덱스 5)
-  const lot = rowData[6].toString().trim(); // I열: 로트 (인덱스 6)
-  const line = rowData[9].toString().trim(); // L열: 주문자 (인덱스 9)
+  const expiryRaw = rowData[5]; // H열: 유통기한
+  const lot = rowData[6].toString().trim(); // I열: 로트
+  const line = rowData[9].toString().trim(); // L열: 주문자
 
   const expiry = Utilities.formatDate(new Date(expiryRaw), Session.getScriptTimeZone(), 'yy.MM.dd');
-  return `${line}_${product}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-');
+
+  return `${line}_${product}_${dValue}_${expiry}_${lot}_${weight}`.replace(/[/\\?%*:|"<>]/g, '-');
 }
 
 /**
