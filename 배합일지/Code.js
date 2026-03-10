@@ -1,23 +1,116 @@
+/**
+ * 메뉴에서 호출 - 캘린더 날짜 선택 팝업을 표시
+ */
 function moveTimestamps() {
+  const now = new Date();
+  const defaultDate = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0');
+
+  const html = HtmlService.createHtmlOutput(`
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Google Sans', Arial, sans-serif; padding: 24px; background: #fff; }
+      .title { font-size: 18px; font-weight: 600; color: #1a73e8; margin-bottom: 16px; }
+      .desc { font-size: 13px; color: #5f6368; margin-bottom: 20px; }
+      .date-wrap {
+        display: flex; align-items: center; gap: 8px;
+        border: 2px solid #1a73e8; border-radius: 8px; padding: 10px 14px;
+        background: #f8f9fa; cursor: pointer; transition: border-color 0.2s;
+      }
+      .date-wrap:hover { border-color: #174ea6; background: #e8f0fe; }
+      .date-wrap:focus-within { border-color: #174ea6; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
+      input[type="date"] {
+        border: none; background: transparent; font-size: 16px; font-weight: 500;
+        color: #202124; outline: none; cursor: pointer; flex: 1;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer; font-size: 20px; opacity: 0.7; transition: opacity 0.2s;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+      .btn-wrap { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+      button {
+        padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 500;
+        cursor: pointer; transition: all 0.2s;
+      }
+      .btn-cancel {
+        background: #fff; color: #5f6368; border: 1px solid #dadce0;
+      }
+      .btn-cancel:hover { background: #f1f3f4; }
+      .btn-ok {
+        background: #1a73e8; color: #fff; border: none;
+      }
+      .btn-ok:hover { background: #174ea6; }
+      .loading { display: none; text-align: center; padding: 10px; color: #1a73e8; font-size: 13px; }
+    </style>
+
+    <div class="title">📅 날짜 선택</div>
+    <div class="desc">조회할 날짜를 선택하세요. 기본값은 오늘입니다.</div>
+
+    <div class="date-wrap" onclick="document.getElementById('datePicker').showPicker()">
+      <input type="date" id="datePicker" value="${defaultDate}">
+    </div>
+
+    <div class="btn-wrap">
+      <button class="btn-cancel" onclick="google.script.host.close()">취소</button>
+      <button class="btn-ok" id="okBtn" onclick="submitDate()">확인</button>
+    </div>
+    <div class="loading" id="loading">⏳ 처리 중...</div>
+
+    <script>
+      function submitDate() {
+        const date = document.getElementById('datePicker').value;
+        if (!date) { alert('날짜를 선택하세요.'); return; }
+        document.getElementById('okBtn').disabled = true;
+        document.getElementById('loading').style.display = 'block';
+        google.script.run
+          .withSuccessHandler(function() { google.script.host.close(); })
+          .withFailureHandler(function(e) {
+            alert('오류: ' + e.message);
+            document.getElementById('okBtn').disabled = false;
+            document.getElementById('loading').style.display = 'none';
+          })
+          .processTimestamps(date);
+      }
+      // 엔터키로도 확인 가능
+      document.getElementById('datePicker').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitDate();
+      });
+    </script>
+  `)
+  .setWidth(340)
+  .setHeight(220);
+
+  SpreadsheetApp.getUi().showModalDialog(html, '타임스템프 이동');
+}
+
+/**
+ * 캘린더에서 선택한 날짜로 타임스탬프 처리 (HTML 다이얼로그에서 호출)
+ * @param {string} dateString - 'YYYY-MM-DD' 형식의 날짜 문자열
+ */
+function processTimestamps(dateString) {
   try {
     const sheet1 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('시트1');
     const viewSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('뷰');
 
     if (!sheet1 || !viewSheet) {
-      Browser.msgBox('시트1 또는 뷰 시트를 찾을 수 없습니다.');
-      return;
+      throw new Error('시트1 또는 뷰 시트를 찾을 수 없습니다.');
     }
 
-    const today = new Date();
+    // 선택된 날짜 파싱
+    const today = new Date(dateString + 'T00:00:00');
+    if (isNaN(today.getTime())) {
+      throw new Error('날짜 형식이 올바르지 않습니다.');
+    }
     today.setHours(0, 0, 0, 0);
 
-    console.log('오늘 날짜:', today);
+    console.log('선택된 날짜:', today);
 
     const lastRow = sheet1.getLastRow();
     console.log('마지막 행:', lastRow);
 
     if (lastRow === 0) {
-      Browser.msgBox('시트1에 데이터가 없습니다.');
+      SpreadsheetApp.getUi().alert('시트1에 데이터가 없습니다.');
       return;
     }
 
@@ -65,7 +158,12 @@ function moveTimestamps() {
       }
     }
 
-    console.log('오늘 날짜 데이터 개수:', todayRows.length);
+    // 선택된 날짜를 표시용 문자열로 변환
+    const selectedDateStr = today.getFullYear() + '.' +
+      String(today.getMonth() + 1).padStart(2, '0') + '.' +
+      String(today.getDate()).padStart(2, '0');
+
+    console.log('선택된 날짜 데이터 개수:', todayRows.length);
 
     viewSheet.getRange('B1:B11').clearContent();
 
@@ -80,26 +178,27 @@ function moveTimestamps() {
 
       try {
         const result = transformViewToERP(); // DataTransformer.js의 함수 호출
-        
+
         // 통합된 완료 메시지
+        const ui = SpreadsheetApp.getUi();
         if (result && result.success) {
-          Browser.msgBox(`✅ 완료!\n\n${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
+          ui.alert(`✅ 완료!\n\n[${selectedDateStr}] ${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
         } else if (result && !result.success) {
-          Browser.msgBox(result.message || '변환 중 오류가 발생했습니다.');
+          ui.alert(result.message || '변환 중 오류가 발생했습니다.');
         } else {
-          Browser.msgBox(`✅ 완료!\n\n${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
+          ui.alert(`✅ 완료!\n\n[${selectedDateStr}] ${maxRows}개의 데이터가 뷰시트와 ERP 시트로 변환 잘 되었습니다.`);
         }
-        
+
       } catch (erpError) {
         console.error('ERP 변환 중 오류:', erpError);
-        Browser.msgBox('ERP 변환 중 오류가 발생했습니다: ' + erpError.message);
+        SpreadsheetApp.getUi().alert('ERP 변환 중 오류가 발생했습니다: ' + erpError.message);
       }
     } else {
-      Browser.msgBox('오늘 날짜에 해당하는 데이터가 없습니다.');
+      SpreadsheetApp.getUi().alert(`[${selectedDateStr}] 해당 날짜의 데이터가 없습니다.`);
     }
   } catch (error) {
     console.error('오류:', error);
-    Browser.msgBox('오류가 발생했습니다: ' + error.message);
+    SpreadsheetApp.getUi().alert('오류가 발생했습니다: ' + error.message);
   }
 }
 
