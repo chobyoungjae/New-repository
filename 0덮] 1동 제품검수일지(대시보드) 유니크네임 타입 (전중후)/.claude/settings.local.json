@@ -8,5 +8,9 @@
       "mcp__smithery-sequential-thinking__sequentialthinking"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }
