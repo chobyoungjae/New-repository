@@ -296,11 +296,14 @@ function pushToBoard(boardId, role, srcRow) {
     ts,
     docName,
     sourceData[0], // F열
-    sheetUrl, // D열: 시트 URL (클릭 시 해당 시트로 이동)
+    uniqueName, // D열: 유니크네임
   ];
   sh.getRange(dstRow, 1, 1, 4).setValues([vals]).setNumberFormat('yyyy/MM/dd HH:mm:ss');
 
-  // 2) 원본 행 번호 (PDF는 서명 완료 시에만 생성)
+  // 2) O열(15): 시트 URL (클릭 시 해당 시트로 이동)
+  sh.getRange(dstRow, 15).setValue(sheetUrl);
+
+  // 3) 원본 행 번호 (PDF는 서명 완료 시에만 생성)
   sh.getRange(dstRow, 11).setValue(srcRow); // K열
 
   // 3) IMPORTRANGE - 서명 상태 연동
