@@ -86,7 +86,6 @@ function findOrCreateSheetName(row) {
 function onFormSubmit(e) {
   const row = e.range.getRow();
   const status = data().getRange(row, 2).getValue().toString().trim(); // B열: 상태
-  console.log(`[onFormSubmit] row: ${row}, status: "${status}"`);
 
   try {
     if (status === '작업 시작 시') {
@@ -101,15 +100,14 @@ function onFormSubmit(e) {
       const s = tpl().copyTo(ss).setName(uniqueName);
       s.getRange('M10').setValue(data().getRange(row, 1).getValue()); // M10에 타임스탬프
       data().getRange(row, 15).setValue(uniqueName); // O열에 uniqueName 저장
-      console.log(`[onFormSubmit] 시트 생성: ${uniqueName}`);
       return;
 
     } else if (status === '작업 중') {
       const sheetName = findOrCreateSheetName(row);
-      if (!sheetName) { console.log(`[onFormSubmit] ❌ 시트명 없음, row: ${row}`); return; }
+      if (!sheetName) return;
 
       const sh = ss.getSheetByName(sheetName);
-      if (!sh) { console.log(`[onFormSubmit] ❌ 시트 객체 없음: ${sheetName}`); return; }
+      if (!sh) return;
 
       const mVals = sh.getRange('M10:M').getValues().flat();
       const nextRow = 10 + mVals.filter(v => v !== '').length;
@@ -119,10 +117,10 @@ function onFormSubmit(e) {
     } else if (status === '제품생산 완료') {
       // ① 시트 찾기 + 타임스탬프 기록
       const sheetName = findOrCreateSheetName(row);
-      if (!sheetName) { console.log(`[onFormSubmit] ❌ 시트명 없음, row: ${row}`); return; }
+      if (!sheetName) return;
 
       const sh = ss.getSheetByName(sheetName);
-      if (!sh) { console.log(`[onFormSubmit] ❌ 시트 객체 없음: ${sheetName}`); return; }
+      if (!sh) return;
 
       const mVals = sh.getRange('M10:M').getValues().flat();
       const nextRow = 10 + mVals.filter(v => v !== '').length;
@@ -130,7 +128,6 @@ function onFormSubmit(e) {
 
       // ② 팀장 이름 매핑 (Q열 드롭다운이므로 값 직접 입력)
       const fValue = data().getRange(row, 6).getDisplayValue().trim();
-
       const lookupSheet = ss.getSheetByName(CFG.LOOKUP);
       const lookupData = lookupSheet.getRange(2, 2, lookupSheet.getLastRow() - 1, 5).getValues(); // B~F열
       let leader = '';
@@ -146,26 +143,18 @@ function onFormSubmit(e) {
         SpreadsheetApp.flush();
       }
 
-      if (!leader) {
-        console.log(`[onFormSubmit] ❌ 팀장 매핑 실패 - F열="${fValue}", row: ${row}`);
-        return;
-      }
+      if (!leader) return;
 
       // ③ 보드 ID 조회
       const info = lookupBoardByName(leader);
-      if (!info) {
-        console.log(`[onFormSubmit] ❌ 보드 ID 없음 - leader="${leader}", row: ${row}`);
-        return;
-      }
+      if (!info) return;
 
       // ④ 보드 전송
       pushToBoard(info.boardId, 'leader', row);
-      console.log(`[onFormSubmit] ✅ 보드 전송 성공 - leader="${leader}", row: ${row}`);
       return;
     }
   } catch (error) {
-    console.log(`[onFormSubmit] 🚨 오류 - row: ${row}, status: "${status}", error: ${error.message}`);
-    console.log(`[onFormSubmit] 🚨 스택: ${error.stack}`);
+    console.log(`[onFormSubmit] 오류 - row: ${row}, status: "${status}", error: ${error.message}, stack: ${error.stack}`);
   }
 }
 
@@ -175,10 +164,7 @@ function doGet(e) {
 
   try {
     const lockAcquired = lock.tryLock(30000);
-    if (!lockAcquired) {
-      console.log(`[doGet] Lock 획득 실패 - 파라미터: ${JSON.stringify(e.parameter)}`);
-      return out('busy - try again later');
-    }
+    if (!lockAcquired) return out('busy - try again later');
 
     const role = e.parameter.role;
     const row = parseInt(e.parameter.row, 10);
@@ -186,22 +172,17 @@ function doGet(e) {
     if (!role || !row) return out('param err');
 
     if (role === 'leader') {
-      const startTime = new Date();
-
       const leaderName = data().getRange(row, CFG.COL.CEO).getDisplayValue().trim();
       insertSig(row, CFG.COL.CEO_SIG, leaderName);
       SpreadsheetApp.flush();
 
       exportPdfAndNotify(row);
-
-      const processingTime = new Date() - startTime;
-      console.log(`[doGet] ✅ 완료 - row: ${row}, ${processingTime}ms`);
       return out('success');
     } else {
       return out('invalid role');
     }
   } catch (error) {
-    console.log(`[doGet] 🚨 오류 - row: ${e.parameter.row}, error: ${error.message}`);
+    console.log(`[doGet] 오류 - row: ${e.parameter.row}, error: ${error.message}`);
     return out(`error: ${error.message}`);
   } finally {
     if (lock) lock.releaseLock();
@@ -283,10 +264,9 @@ function pushToBoard(boardId, role, srcRow) {
   const ts = new Date();
   const docName = '1동 제품검수일지(대시보드)';
   const sourceData = data().getRange(srcRow, 6, 1, 10).getValues()[0]; // F~O열
-
   const uniqueName = sourceData[9].toString().trim(); // O열 (uniqueName)
 
-  // uniqueName으로 시트 GID 조회 → 클릭하면 해당 시트 셀로 이동하는 URL 생성
+  // uniqueName으로 시트 GID 조회 → 클릭하면 해당 시트로 이동하는 URL 생성
   const targetSheet = ss.getSheetByName(uniqueName);
   const sheetUrl = targetSheet
     ? `https://docs.google.com/spreadsheets/d/${masterId}/edit#gid=${targetSheet.getSheetId()}&range=A1`
@@ -306,14 +286,14 @@ function pushToBoard(boardId, role, srcRow) {
   // 3) 원본 행 번호 (PDF는 서명 완료 시에만 생성)
   sh.getRange(dstRow, 11).setValue(srcRow); // K열
 
-  // 3) IMPORTRANGE - 서명 상태 연동
+  // 4) IMPORTRANGE - 서명 상태 연동
   const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`;
   sh.getRange(dstRow, 8).setFormula(imp('r')); // H열: 서명자
 
-  // 4) 체크박스
+  // 5) 체크박스
   sh.getRange(dstRow, 12).insertCheckboxes();
 
-  // 5) 서명 하이퍼링크
+  // 6) 서명 하이퍼링크
   const execUrl = lookupExecUrlByScriptId(ScriptApp.getScriptId());
   sh.getRange(dstRow, 13).setFormula(`=HYPERLINK("${execUrl}?role=${role}&row=${srcRow}","")`);
 }
@@ -359,30 +339,17 @@ function createPdfFromSheet(row, customFolderId = null) {
 
 /********* 서명 완료 후 PDF 생성 및 시트 삭제 *********/
 function exportPdfAndNotify(row) {
-  try {
-    // 1) PDF 생성 (서명 완료 후 최종 폴더에 저장)
-    const finalFolderId = '1LUi7lgAy3Uru4FbnB88hBxXIZ-Pb2NGE';
-    const pdfFileId = createPdfFromSheet(row, finalFolderId);
-    console.log(`[exportPdfAndNotify] PDF 생성 완료 - fileId: ${pdfFileId}, row: ${row}`);
+  // 1) PDF 생성 (서명 완료 후 최종 폴더에 저장)
+  const finalFolderId = '1LUi7lgAy3Uru4FbnB88hBxXIZ-Pb2NGE';
+  const pdfFileId = createPdfFromSheet(row, finalFolderId);
 
-    // 2) 시트 삭제
-    const sheetName = data().getRange(row, 15).getDisplayValue().trim();
-    if (!sheetName) return;
+  // 2) 시트 삭제
+  const sheetName = data().getRange(row, 15).getDisplayValue().trim();
+  if (!sheetName) return;
 
-    const sheet = ss.getSheetByName(sheetName);
-    if (sheet) {
-      if (ss.getSheets().length <= 1) return; // 마지막 시트 보호
-
-      try {
-        ss.deleteSheet(sheet);
-        SpreadsheetApp.flush();
-        console.log(`[exportPdfAndNotify] 시트 삭제: ${sheetName}`);
-      } catch (deleteError) {
-        console.log(`[exportPdfAndNotify] 시트 삭제 오류: ${deleteError.message}`);
-      }
-    }
-  } catch (error) {
-    console.log(`[exportPdfAndNotify] 🚨 오류 - row: ${row}, error: ${error.message}`);
-    throw error;
+  const sheet = ss.getSheetByName(sheetName);
+  if (sheet && ss.getSheets().length > 1) {
+    ss.deleteSheet(sheet);
+    SpreadsheetApp.flush();
   }
 }
