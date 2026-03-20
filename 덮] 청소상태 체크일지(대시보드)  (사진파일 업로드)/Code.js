@@ -247,10 +247,17 @@ function pushToBoard(boardId, role, srcRow) {
   // << 보드에 항목 추가
   const masterId = ss.getId(); // << 마스터 스프레드시트 ID
   const sh = SpreadsheetApp.openById(boardId).getSheets()[0]; // << 보드 시트
-  const dstRow = sh.getLastRow() + 1; // << 추가할 행번호
 
-  // PDF 생성하고 파일 ID 획득
-  const pdfFileId = createPdfFromSheet(srcRow, false); // << 첫 번째 PDF 생성
+  // A열 기준 실제 데이터 마지막 행 찾기
+  const aValues = sh.getRange('A:A').getValues();
+  let lastDataRow = 0;
+  for (let i = aValues.length - 1; i >= 0; i--) {
+    if (aValues[i][0] !== '') {
+      lastDataRow = i + 1;
+      break;
+    }
+  }
+  const dstRow = lastDataRow + 1; // << A열 기준 마지막 데이터 바로 아래
 
   // 1) A~G 값 쓰기 (성능 최적화: 배치 읽기)
   const ts = new Date(); // << 타임스탬프
@@ -267,9 +274,18 @@ function pushToBoard(boardId, role, srcRow) {
   ];
   sh.getRange(dstRow, 1, 1, 4).setValues([vals]).setNumberFormat('yyyy/MM/dd HH:mm:ss'); // << 쓰기 및 서식 적용
 
-  // 2) 원본 행 번호 및 PDF 파일 ID (성능 최적화: 배치 쓰기)
-  const metaData = [[srcRow], [null], [null], [null], [pdfFileId]]; // K, L, M, N, O열
-  sh.getRange(dstRow, 11, 1, 5).setValues([metaData.flat()]); // << 배치 쓰기
+  // 2) 원본 행 번호 (K열)
+  sh.getRange(dstRow, 11).setValue(srcRow);
+
+  // uniqueName으로 시트 GID 조회 → 클릭하면 해당 시트로 이동하는 URL 생성
+  const uniqueName = sourceData[17].toString().trim(); // S열(19): uniqueName
+  const targetSheet = ss.getSheetByName(uniqueName);
+  const sheetFullUrl = targetSheet
+    ? `https://docs.google.com/spreadsheets/d/${masterId}/edit#gid=${targetSheet.getSheetId()}&range=A1`
+    : uniqueName; // 시트 없으면 이름만 표시
+
+  // O열(15): 시트 URL (클릭 시 해당 시트로 이동)
+  sh.getRange(dstRow, 15).setValue(sheetFullUrl);
 
   // 3) IMPORTRANGE 설정
   const imp = c => `=IMPORTRANGE("${masterId}","A시트!${c}${srcRow}")`; // << IMPORTRANGE 수식
